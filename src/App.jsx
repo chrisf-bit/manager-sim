@@ -1714,7 +1714,7 @@ export default function App() {
             </div>
 
             {/* Desktop sidebar with metrics and investments - hidden on mobile */}
-            <aside className="hide-mobile" style={{ display: 'flex', flexDirection: 'column', gap: 10, overflow: 'auto' }}>
+            <aside className="hide-mobile" style={{ display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', height: '100%', maxHeight: '100%' }}>
               <section aria-labelledby="metrics-heading" aria-live="polite" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10` }}>
                 <h2 id="metrics-heading" style={{ fontSize: '0.75rem', color: COLORS.purple, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10, fontWeight: 600 }}>Metrics</h2>
                 {[{ k: 'trust', l: 'Trust', i: '🤝' }, { k: 'engagement', l: 'Engagement', i: '⚡' }, { k: 'performance', l: 'Performance', i: '📈' }, { k: 'fairness', l: 'Fairness', i: '⚖️' }, { k: 'credibility', l: 'Credibility', i: '🎯' }].map(x => (
