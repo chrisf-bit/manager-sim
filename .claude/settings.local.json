@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(npm install)",
+      "Bash(timeout 5 bash -c \"cd ''C:\\\\Users\\\\ChrisFreebairn\\\\OneDrive - rapid-learn.co.uk\\\\Apps\\\\under-pressure-sim'' && npm run dev 2>&1\")",
+      "Bash(start http://localhost:5174)",
+      "Bash(npm run dev)"
+    ]
+  }
+}
