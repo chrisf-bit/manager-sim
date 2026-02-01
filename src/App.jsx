@@ -83,14 +83,43 @@ const NOTIFICATIONS = {
     { check: (b) => b.lastAllocation > 5000, text: "Strong funding this quarter. Well done.", icon: '📈' },
     { check: (b) => b.lastAllocation < 4000 && b.lastAllocation > 0, text: "Below-average allocation. Leadership expects improvement.", icon: '📉' },
   ],
+  workload: [
+    {
+      check: (c) => c.find(x => !x.departed && x.loadPercent > 140),
+      text: "Someone's on the verge of burnout. The workload is unsustainable.",
+      icon: '🔥'
+    },
+    {
+      check: (c) => c.find(x => !x.departed && x.loadPercent > 120),
+      text: "The team is stretched thin. People are working overtime.",
+      icon: '⚠️'
+    },
+    {
+      check: (c) => c.filter(x => !x.departed).length < 4,
+      text: "An empty desk is a constant reminder of what was lost.",
+      icon: '🪑'
+    },
+  ],
+  attrition: [
+    {
+      check: (c) => c.find(x => !x.departed && x.performance >= 80 && x.engagement < 60),
+      text: "One of your top performers has updated their LinkedIn profile.",
+      icon: '👀'
+    },
+    {
+      check: (c) => c.find(x => !x.departed && x.trust < 45 && x.engagement < 50),
+      text: "Someone was overheard asking about opportunities in other teams.",
+      icon: '🚪'
+    },
+  ],
 };
 
 const INITIAL_CHARACTERS = [
-  { id: 'dave', name: 'Dave Chen', role: 'Senior Developer', tenure: '4 years', performance: 92, avatar: '👨‍💻', traits: ['High performer', 'Abrasive', 'Politically influential'], drivers: 'Recognition, autonomy, being the expert', sensitivity: 'Low emotional sensitivity, high ego', trust: 70, engagement: 75, atRisk: false },
-  { id: 'aisha', name: 'Aisha Patel', role: 'Product Manager', tenure: '3 years', performance: 78, avatar: '👩‍💼', traits: ['Solid performer', 'Overlooked', 'Values fairness'], drivers: 'Equity, growth opportunities, being heard', sensitivity: 'High sensitivity to perceived unfairness', trust: 65, engagement: 60, atRisk: true },
-  { id: 'tom', name: 'Tom Williams', role: 'Marketing Lead', tenure: '2 years', performance: 55, avatar: '👨‍🎨', traits: ['Likeable', 'Underperforming', 'Personal issues'], drivers: 'Work-life balance, team connection, stability', sensitivity: 'Going through divorce, emotionally fragile', trust: 80, engagement: 45, atRisk: false },
-  { id: 'sarah', name: 'Sarah Kim', role: 'Data Analyst', tenure: '1 year', performance: 85, avatar: '👩‍🔬', traits: ['Quiet', 'High potential', 'Conflict-avoidant'], drivers: 'Learning, mentorship, psychological safety', sensitivity: 'Withdraws under pressure, needs encouragement', trust: 75, engagement: 70, atRisk: false },
-  { id: 'liam', name: "Liam O'Brien", role: 'Junior Developer', tenure: '3 months', performance: 68, avatar: '👨‍🎓', traits: ['New hire', 'Eager', 'Uncertain expectations'], drivers: 'Clarity, feedback, proving himself', sensitivity: 'Highly impressionable, watching everything', trust: 60, engagement: 85, atRisk: false },
+  { id: 'dave', name: 'Dave Chen', role: 'Senior Developer', tenure: '4 years', performance: 92, avatar: '👨‍💻', traits: ['High performer', 'Abrasive', 'Politically influential'], drivers: 'Recognition, autonomy, being the expert', sensitivity: 'Low emotional sensitivity, high ego', trust: 70, engagement: 75, atRisk: false, baseCapacity: 20, currentLoad: 20, loadPercent: 100, departed: false, departureReason: null },
+  { id: 'aisha', name: 'Aisha Patel', role: 'Product Manager', tenure: '3 years', performance: 78, avatar: '👩‍💼', traits: ['Solid performer', 'Overlooked', 'Values fairness'], drivers: 'Equity, growth opportunities, being heard', sensitivity: 'High sensitivity to perceived unfairness', trust: 65, engagement: 60, atRisk: true, baseCapacity: 20, currentLoad: 20, loadPercent: 100, departed: false, departureReason: null },
+  { id: 'tom', name: 'Tom Williams', role: 'Marketing Lead', tenure: '2 years', performance: 55, avatar: '👨‍🎨', traits: ['Likeable', 'Underperforming', 'Personal issues'], drivers: 'Work-life balance, team connection, stability', sensitivity: 'Going through divorce, emotionally fragile', trust: 80, engagement: 45, atRisk: false, baseCapacity: 20, currentLoad: 20, loadPercent: 100, departed: false, departureReason: null },
+  { id: 'sarah', name: 'Sarah Kim', role: 'Data Analyst', tenure: '1 year', performance: 85, avatar: '👩‍🔬', traits: ['Quiet', 'High potential', 'Conflict-avoidant'], drivers: 'Learning, mentorship, psychological safety', sensitivity: 'Withdraws under pressure, needs encouragement', trust: 75, engagement: 70, atRisk: false, baseCapacity: 20, currentLoad: 20, loadPercent: 100, departed: false, departureReason: null },
+  { id: 'liam', name: "Liam O'Brien", role: 'Junior Developer', tenure: '3 months', performance: 68, avatar: '👨‍🎓', traits: ['New hire', 'Eager', 'Uncertain expectations'], drivers: 'Clarity, feedback, proving himself', sensitivity: 'Highly impressionable, watching everything', trust: 60, engagement: 85, atRisk: false, baseCapacity: 20, currentLoad: 20, loadPercent: 100, departed: false, departureReason: null },
 ];
 
 const ALL_EVENTS = [
@@ -978,6 +1007,9 @@ export default function App() {
   const [selectedOption, setSelectedOption] = useState(null);
   const [showMobileInvestments, setShowMobileInvestments] = useState(false);
   const [budget, setBudget] = useState({ current: 5000, lastAllocation: 0, totalReceived: 5000 });
+  const [workDemand] = useState(100);  // Constant work demand
+  const [departingChar, setDepartingChar] = useState(null);  // Departing character
+  const [teamCapacity, setTeamCapacity] = useState(5);  // Active member count
 
   const genNotes = (currentChars, currentMetrics, currentInv, currentBudget) => {
     const n = [];
@@ -1005,6 +1037,8 @@ export default function App() {
     NOTIFICATIONS.metrics.forEach(x => { if (x.check(currentMetrics) && Math.random() > 0.5) n.push({ text: x.text, icon: x.icon }); });
     NOTIFICATIONS.investment.forEach(x => { if (x.check(currentInv) && Math.random() > 0.6) n.push({ text: x.text, icon: x.icon }); });
     NOTIFICATIONS.budget.forEach(x => { if (x.check(currentBudget) && Math.random() > 0.5) n.push({ text: x.text, icon: x.icon }); });
+    NOTIFICATIONS.workload.forEach(x => { if (x.check(currentChars) && Math.random() > 0.5) n.push({ text: x.text, icon: x.icon }); });
+    NOTIFICATIONS.attrition.forEach(x => { if (x.check(currentChars) && Math.random() > 0.5) n.push({ text: x.text, icon: x.icon }); });
 
     if (n.length < 2 && Math.random() > 0.5) {
       const g = NOTIFICATIONS.general[Math.floor(Math.random() * NOTIFICATIONS.general.length)];
@@ -1041,6 +1075,108 @@ export default function App() {
     }));
 
     return allocation;
+  };
+
+  const calculateIndividualLoads = (currentChars, demand = 100) => {
+    const activeChars = currentChars.filter(c => !c.departed);
+    const activeCount = activeChars.length;
+
+    if (activeCount === 0) return currentChars;
+
+    const loadPerPerson = demand / activeCount;
+
+    return currentChars.map(c => {
+      if (c.departed) return c;
+
+      const loadPercent = (loadPerPerson / c.baseCapacity) * 100;
+
+      return {
+        ...c,
+        currentLoad: loadPerPerson,
+        loadPercent: loadPercent
+      };
+    });
+  };
+
+  const applyBurnoutPenalties = (currentChars) => {
+    return currentChars.map(c => {
+      if (c.departed) return c;
+
+      const overloadPercent = Math.max(0, c.loadPercent - 100);
+      if (overloadPercent === 0) return c;
+
+      const penaltyMultiplier = Math.floor(overloadPercent / 10);
+
+      return {
+        ...c,
+        engagement: clamp(c.engagement - (5 * penaltyMultiplier), 0, 100),
+        trust: clamp(c.trust - (3 * penaltyMultiplier), 0, 100),
+        atRisk: c.atRisk || overloadPercent > 40
+      };
+    });
+  };
+
+  const checkAttrition = (currentChars, currentMetrics) => {
+    const activeChars = currentChars.filter(c => !c.departed);
+    if (activeChars.length === 0) return null;
+
+    const atRiskChars = [];
+
+    activeChars.forEach(c => {
+      let risk = 0;
+
+      // High performer triggers
+      if (c.performance >= 80) {
+        if (c.trust < 50) risk += 25;
+        if (currentMetrics.fairness < 50) risk += 20;
+        if (currentMetrics.credibility < 45) risk += 20;
+      }
+
+      // General triggers
+      if (c.engagement < 35) risk += 30;
+      if (c.trust < 40) risk += 25;
+
+      // Workload triggers
+      if (c.loadPercent > 120) risk += 15;
+      if (c.loadPercent > 140) risk += 25;
+
+      // At-risk bonus
+      if (c.atRisk) risk += 15;
+
+      if (risk > 0) atRiskChars.push({ character: c, risk });
+    });
+
+    // Sort by risk (highest first)
+    atRiskChars.sort((a, b) => b.risk - a.risk);
+
+    // Check each (first success wins)
+    for (const { character, risk } of atRiskChars) {
+      if (Math.random() * 100 < risk) return character;
+    }
+
+    return null;
+  };
+
+  const getDepartureReason = (character, currentMetrics) => {
+    if (character.performance >= 80 && character.trust < 50) {
+      return "I don't feel valued here anymore. I need to work somewhere that appreciates what I bring.";
+    }
+    if (character.engagement < 35) {
+      return "I've been checked out for months. It's time I found something that excites me again.";
+    }
+    if (character.loadPercent > 140) {
+      return "I can't keep doing the work of two people. The burnout isn't worth it.";
+    }
+    if (character.loadPercent > 120) {
+      return "The workload has been unsustainable. I need better balance.";
+    }
+    if (character.trust < 40) {
+      return "I've lost confidence in the leadership here. I need a fresh start.";
+    }
+    if (currentMetrics.fairness < 50) {
+      return "I don't think decisions are being made fairly. I deserve better.";
+    }
+    return "I've decided it's time to move on. This just isn't the right fit anymore.";
   };
 
   const start = () => {
@@ -1093,7 +1229,47 @@ export default function App() {
   };
 
   const endRound = () => {
+    // 1. Apply burnout penalties
+    let updatedChars = applyBurnoutPenalties(chars);
+
+    // 2. Check for attrition
+    const departingCharacter = checkAttrition(updatedChars, metrics);
+
+    // 3. Save history
     setHistory([...history, { round, ...metrics }]);
+
+    // 4. If someone is leaving
+    if (departingCharacter) {
+      // Mark as departed
+      updatedChars = updatedChars.map(c =>
+        c.id === departingCharacter.id
+          ? { ...c, departed: true, departureReason: getDepartureReason(c, metrics) }
+          : c
+      );
+
+      // Team-wide morale hit
+      updatedChars = updatedChars.map(c =>
+        c.departed ? c : {
+          ...c,
+          trust: clamp(c.trust - 5, 0, 100),
+          engagement: clamp(c.engagement - 8, 0, 100)
+        }
+      );
+
+      // Recalculate loads
+      updatedChars = calculateIndividualLoads(updatedChars, workDemand);
+
+      // Update state
+      setChars(updatedChars);
+      setDepartingChar(departingCharacter);
+      setTeamCapacity(updatedChars.filter(c => !c.departed).length);
+      setPhase('departure');
+      return;
+    }
+
+    // 5. No departure - continue normally
+    setChars(updatedChars);
+
     if (round >= 4) {
       setPhase('results');
     } else {
@@ -1117,6 +1293,8 @@ export default function App() {
     setNotes([]);
     setSelectedOption(null);
     setBudget({ current: 5000, lastAllocation: 0, totalReceived: 5000 });
+    setDepartingChar(null);
+    setTeamCapacity(5);
   };
 
   const profile = () => {
@@ -1255,6 +1433,116 @@ export default function App() {
             }}
           >
             Start Q{round + 1}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'departure') {
+    const departedChar = chars.find(c => c.id === departingChar.id);
+    const remainingCount = chars.filter(c => !c.departed).length;
+
+    return (
+      <div role="main" aria-label="Team Member Departure" style={{
+        width: '100vw', minHeight: '100vh',
+        background: `linear-gradient(135deg, ${COLORS.black} 0%, ${COLORS.darkPurple} 100%)`,
+        fontFamily: "'Poppins', sans-serif",
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '40px 20px'
+      }}>
+        <style>{styles}</style>
+
+        <div style={{
+          maxWidth: 600, width: '100%',
+          background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`,
+          borderRadius: 20, padding: 40,
+          border: `2px solid ${COLORS.yellow}`
+        }}>
+          {/* Avatar & Name */}
+          <div style={{ textAlign: 'center', marginBottom: 30 }}>
+            <div style={{ fontSize: '5rem', marginBottom: 15, opacity: 0.7 }}>
+              {departedChar.avatar}
+            </div>
+            <h1 style={{ fontSize: '2rem', fontWeight: 700, color: COLORS.white, marginBottom: 8 }}>
+              {departedChar.name} Has Left
+            </h1>
+            <p style={{ fontSize: '1.1rem', color: COLORS.yellow, margin: 0 }}>
+              {departedChar.role}
+            </p>
+          </div>
+
+          {/* Departure Quote */}
+          <div style={{
+            background: `${COLORS.black}40`,
+            borderLeft: `4px solid ${COLORS.yellow}`,
+            padding: 20, borderRadius: 8, marginBottom: 30
+          }}>
+            <p style={{
+              fontSize: '1.05rem', color: `${COLORS.white}cc`,
+              lineHeight: 1.6, margin: 0, fontStyle: 'italic'
+            }}>
+              "{departedChar.departureReason}"
+            </p>
+          </div>
+
+          {/* Impact Summary */}
+          <div style={{
+            background: `${COLORS.black}40`,
+            padding: 20, borderRadius: 8, marginBottom: 30
+          }}>
+            <h2 style={{
+              fontSize: '0.9rem', color: COLORS.purple,
+              textTransform: 'uppercase', letterSpacing: 2, marginBottom: 15
+            }}>
+              Impact on Team
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: `${COLORS.white}99` }}>Team Size:</span>
+                <span style={{ color: COLORS.yellow, fontWeight: 600 }}>
+                  {remainingCount} / 5 members
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: `${COLORS.white}99` }}>Team Morale:</span>
+                <span style={{ color: '#ff4757', fontWeight: 600 }}>
+                  -5 Trust, -8 Engagement
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: `${COLORS.white}99` }}>Workload per Person:</span>
+                <span style={{
+                  color: chars.filter(c => !c.departed)[0]?.loadPercent > 120 ? '#ff4757' : COLORS.yellow,
+                  fontWeight: 600
+                }}>
+                  {Math.round(chars.filter(c => !c.departed)[0]?.loadPercent || 100)}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Continue Button */}
+          <button
+            onClick={() => {
+              setDepartingChar(null);
+              if (round >= 4) {
+                setPhase('results');
+              } else {
+                allocateBudget(20000);
+                setPhase('budgetAllocation');
+              }
+            }}
+            style={{
+              width: '100%', padding: '16px 32px',
+              fontSize: '1.1rem', fontWeight: 600,
+              background: COLORS.purple, color: COLORS.white,
+              border: 'none', borderRadius: 12, cursor: 'pointer'
+            }}
+          >
+            Continue to Q{round + 1}
           </button>
         </div>
       </div>
@@ -1440,6 +1728,34 @@ export default function App() {
                   <div role="progressbar" aria-valuenow={Math.round(metrics.emotionalLoad)} aria-valuemin="0" aria-valuemax="100" aria-label={`Your load: ${Math.round(metrics.emotionalLoad)} percent`} style={{ height: 4, background: `${COLORS.white}10`, borderRadius: 2 }}><div style={{ width: `${metrics.emotionalLoad}%`, height: '100%', background: metrics.emotionalLoad > 60 ? COLORS.yellow : COLORS.teal, borderRadius: 2 }} /></div>
                 </div>
               </section>
+              <section aria-labelledby="team-capacity-heading" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10` }}>
+                <h2 id="team-capacity-heading" style={{ fontSize: '0.75rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10, fontWeight: 600 }}>👥 Team Capacity</h2>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+                  <span style={{
+                    fontSize: '2.5rem', fontWeight: 700,
+                    color: teamCapacity >= 4 ? COLORS.teal : COLORS.yellow
+                  }}>{teamCapacity}</span>
+                  <span style={{ fontSize: '1rem', color: `${COLORS.white}70` }}>/ 5</span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: `${COLORS.white}cc`, marginBottom: 10 }}>
+                  {teamCapacity === 5 ? 'Full team capacity' :
+                   teamCapacity >= 4 ? 'Slightly reduced capacity' : 'Significantly understaffed'}
+                </div>
+                {teamCapacity > 0 && (
+                  <div style={{ background: `${COLORS.black}30`, padding: 10, borderRadius: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: '0.65rem', color: `${COLORS.white}99` }}>Avg. Workload</span>
+                      <span style={{
+                        fontSize: '0.85rem', fontWeight: 600,
+                        color: chars.filter(c => !c.departed)[0]?.loadPercent > 120 ? '#ff4757' :
+                               chars.filter(c => !c.departed)[0]?.loadPercent > 100 ? COLORS.yellow : COLORS.teal
+                      }}>
+                        {Math.round(chars.filter(c => !c.departed)[0]?.loadPercent || 100)}%
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </section>
               <section className="investments-section" aria-labelledby="investments-heading" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10`, flex: 1 }}>
                 <h2 id="investments-heading" style={{ fontSize: '0.75rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10, fontWeight: 600 }}>Investments</h2>
                 {renderInvestments()}
@@ -1530,11 +1846,11 @@ export default function App() {
               <h2 id="team-sidebar-heading" style={{ fontSize: '0.75rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10, fontWeight: 600 }}>Your Team</h2>
               <div role="list" aria-label="Team members" className="team-sidebar">
               {chars.map(c => (
-                <article key={c.id} role="listitem" aria-label={`${c.name}, ${c.role}${c.atRisk ? ', at risk' : ''}`} style={{ background: `${COLORS.black}40`, padding: 10, borderRadius: 10, borderLeft: `3px solid ${c.atRisk ? COLORS.yellow : c.engagement < 50 ? '#ff4757' : COLORS.teal}` }}>
+                <article key={c.id} role="listitem" aria-label={`${c.name}, ${c.role}${c.departed ? ', departed' : c.atRisk ? ', at risk' : ''}`} style={{ background: `${COLORS.black}40`, padding: 10, borderRadius: 10, borderLeft: `3px solid ${c.atRisk ? COLORS.yellow : c.engagement < 50 ? '#ff4757' : COLORS.teal}`, opacity: c.departed ? 0.5 : 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <span aria-hidden="true" style={{ fontSize: '1.6rem' }}>{c.avatar}</span>
                     <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: COLORS.white, fontSize: '0.95rem' }}>{c.name}</div><div style={{ fontSize: '0.75rem', color: `${COLORS.white}cc` }}>{c.role}</div></div>
-                    {c.atRisk && <div aria-label="At risk indicator" style={{ background: `${COLORS.yellow}30`, color: COLORS.yellow, padding: '2px 5px', borderRadius: 6, fontSize: '0.6rem', fontWeight: 600 }}>RISK</div>}
+                    {c.departed ? <div aria-label="Departed indicator" style={{ background: `${COLORS.white}20`, color: `${COLORS.white}70`, padding: '2px 5px', borderRadius: 6, fontSize: '0.6rem', fontWeight: 600 }}>DEPARTED</div> : c.atRisk ? <div aria-label="At risk indicator" style={{ background: `${COLORS.yellow}30`, color: COLORS.yellow, padding: '2px 5px', borderRadius: 6, fontSize: '0.6rem', fontWeight: 600 }}>RISK</div> : null}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                     <div><div id={`trust-${c.id}`} style={{ fontSize: '0.65rem', color: `${COLORS.white}cc`, marginBottom: 2 }}>Trust</div><div role="progressbar" aria-valuenow={Math.round(c.trust)} aria-valuemin="0" aria-valuemax="100" aria-labelledby={`trust-${c.id}`} style={{ height: 3, background: `${COLORS.white}10`, borderRadius: 2 }}><div style={{ width: `${c.trust}%`, height: '100%', background: COLORS.purple, borderRadius: 2 }} /></div></div>
@@ -1557,9 +1873,25 @@ export default function App() {
         {tab === 'team' && (
           <div role="tabpanel" id="team-panel" aria-label="Team view" className="team-grid" style={{ flex: 1 }}>
             {chars.map(c => (
-              <article key={c.id} aria-label={`${c.name} - ${c.role}`} style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 16, padding: 20, border: `1px solid ${c.atRisk ? COLORS.yellow : COLORS.white}20`, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 15 }}><div aria-hidden="true" style={{ fontSize: '3rem', background: `${COLORS.black}50`, borderRadius: '50%', width: 70, height: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{c.avatar}</div><div><h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600, color: COLORS.white }}>{c.name}</h3><p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: `${COLORS.white}99` }}>{c.role}</p><p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: `${COLORS.white}70` }}>{c.tenure}</p></div>{c.atRisk && <div aria-label="At risk" style={{ marginLeft: 'auto', background: `${COLORS.yellow}20`, color: COLORS.yellow, padding: '4px 10px', borderRadius: 12, fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase' }}>Risk</div>}</div>
+              <article key={c.id} aria-label={`${c.name} - ${c.role}`} style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 16, padding: 20, border: `1px solid ${c.atRisk ? COLORS.yellow : COLORS.white}20`, display: 'flex', flexDirection: 'column', opacity: c.departed ? 0.5 : 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 15 }}><div aria-hidden="true" style={{ fontSize: '3rem', background: `${COLORS.black}50`, borderRadius: '50%', width: 70, height: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{c.avatar}</div><div><h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600, color: COLORS.white }}>{c.name}</h3><p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: `${COLORS.white}99` }}>{c.role}</p><p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: `${COLORS.white}70` }}>{c.tenure}</p></div>{c.departed ? <div aria-label="Departed" style={{ marginLeft: 'auto', background: `${COLORS.white}20`, color: `${COLORS.white}70`, padding: '4px 10px', borderRadius: 12, fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase' }}>DEPARTED</div> : c.atRisk ? <div aria-label="At risk" style={{ marginLeft: 'auto', background: `${COLORS.yellow}20`, color: COLORS.yellow, padding: '4px 10px', borderRadius: 12, fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase' }}>RISK</div> : null}</div>
                 <div role="list" aria-label="Traits" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>{c.traits.map((t) => (<span key={t} role="listitem" style={{ background: `${COLORS.purple}20`, color: COLORS.purple, padding: '3px 10px', borderRadius: 12, fontSize: '0.7rem' }}>{t}</span>))}</div>
+                {!c.departed && c.loadPercent > 100 && (
+                  <div style={{
+                    background: c.loadPercent > 140 ? `${COLORS.yellow}20` : `rgba(255, 165, 0, 0.2)`,
+                    borderLeft: `4px solid ${c.loadPercent > 140 ? '#ff4757' : c.loadPercent > 120 ? 'orange' : COLORS.yellow}`,
+                    padding: 10, borderRadius: 8, marginBottom: 12
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', color: COLORS.white, fontWeight: 600, textTransform: 'uppercase' }}>
+                        {c.loadPercent > 140 ? '🔥 BURNOUT RISK' : c.loadPercent > 120 ? '⚠️ OVERLOADED' : '⚡ STRETCHED'}
+                      </span>
+                      <span style={{ fontSize: '0.9rem', color: COLORS.white, fontWeight: 700 }}>
+                        {Math.round(c.loadPercent)}%
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}><div aria-label={`Trust: ${Math.round(c.trust)}`} style={{ background: `${COLORS.black}40`, padding: 10, borderRadius: 8 }}><div style={{ fontSize: '0.65rem', color: `${COLORS.white}99`, marginBottom: 4 }}>Trust</div><div style={{ fontSize: '1.4rem', fontWeight: 700, color: getMetricColor(c.trust) }}>{Math.round(c.trust)}</div></div><div aria-label={`Engagement: ${Math.round(c.engagement)}`} style={{ background: `${COLORS.black}40`, padding: 10, borderRadius: 8 }}><div style={{ fontSize: '0.65rem', color: `${COLORS.white}99`, marginBottom: 4 }}>Engagement</div><div style={{ fontSize: '1.4rem', fontWeight: 700, color: getMetricColor(c.engagement) }}>{Math.round(c.engagement)}</div></div></div>
                 <div style={{ background: `${COLORS.black}40`, padding: 10, borderRadius: 8, marginBottom: 12 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}><span id={`perf-label-${c.id}`} style={{ fontSize: '0.7rem', color: `${COLORS.white}99` }}>Performance</span><span style={{ fontSize: '0.8rem', color: COLORS.white, fontWeight: 600 }}>{c.performance}%</span></div><div role="progressbar" aria-valuenow={c.performance} aria-valuemin="0" aria-valuemax="100" aria-labelledby={`perf-label-${c.id}`} style={{ height: 5, background: `${COLORS.white}10`, borderRadius: 3 }}><div style={{ width: `${c.performance}%`, height: '100%', background: COLORS.teal, borderRadius: 3 }} /></div></div>
                 <div style={{ flex: 1 }}><div style={{ fontSize: '0.7rem', color: `${COLORS.white}70`, marginBottom: 4 }}>Drivers</div><p style={{ fontSize: '0.8rem', color: `${COLORS.white}cc`, lineHeight: 1.4, margin: '0 0 8px 0' }}>{c.drivers}</p><div style={{ fontSize: '0.7rem', color: `${COLORS.white}70`, marginBottom: 4 }}>Sensitivity</div><p style={{ fontSize: '0.8rem', color: `${COLORS.white}cc`, lineHeight: 1.4, margin: 0 }}>{c.sensitivity}</p></div>
