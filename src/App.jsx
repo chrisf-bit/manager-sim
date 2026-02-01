@@ -14,6 +14,17 @@ const BUDGET_INVESTMENTS = [
   { id: 'recognition', label: 'Recognition', icon: '🏆', effects: { trust: 0.06, engagement: 0.08, fairness: 0.06 } },
 ];
 
+const INVESTMENT_COSTS = {
+  training: 200,       // £200 per 10%
+  teamBuilding: 150,   // £150 per 10%
+  tools: 250,          // £250 per 10%
+  recognition: 100,    // £100 per 10%
+  oneOnOnes: 0,        // Time investments free
+  coaching: 0,
+  strategy: 0,
+  selfCare: 0
+};
+
 const TIME_INVESTMENTS = [
   { id: 'oneOnOnes', label: '1:1s', icon: '💬', effects: { trust: 0.1, credibility: 0.08, fairness: 0.04 }, loadEffect: 0.15 },
   { id: 'coaching', label: 'Coaching', icon: '🎓', effects: { performance: 0.06, engagement: 0.06, credibility: 0.06 }, loadEffect: 0.2 },
@@ -65,6 +76,12 @@ const NOTIFICATIONS = {
     { text: "IT pushed an update overnight. Nothing works properly.", icon: '💻' },
     { text: "Rain hammering the windows. No one wants to go out for lunch.", icon: '🌧️' },
     { text: "Friday afternoon energy. Focus is wavering.", icon: '🎉' },
+  ],
+  budget: [
+    { check: (b) => b.current < 2000 && b.current > 0, text: "Funds running low. Prioritize carefully.", icon: '💰' },
+    { check: (b) => b.current === 0, text: "No budget remaining. Time investments only.", icon: '🚫' },
+    { check: (b) => b.lastAllocation > 5000, text: "Strong funding this quarter. Well done.", icon: '📈' },
+    { check: (b) => b.lastAllocation < 4000 && b.lastAllocation > 0, text: "Below-average allocation. Leadership expects improvement.", icon: '📉' },
   ],
 };
 
@@ -143,6 +160,14 @@ const getInvestmentModifier = (event, inv) => {
   return count ? total / count / 50 : 1;
 };
 
+const calculateInvestmentCost = (investments) => {
+  return Object.entries(investments).reduce((total, [key, value]) => {
+    const costPer10 = INVESTMENT_COSTS[key] || 0;
+    const units = value / 10;
+    return total + (costPer10 * units);
+  }, 0);
+};
+
 const styles = `
   /* ============================================
      RESPONSIVE BREAKPOINTS
@@ -169,6 +194,8 @@ const styles = `
   @media (prefers-reduced-motion: no-preference) {
     @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 0.8; } }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulseText { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    @keyframes countUp { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
     .animate-pulse { animation: pulse 4s ease-in-out infinite; }
     .animate-fade { animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
   }
@@ -950,12 +977,35 @@ export default function App() {
   const [notes, setNotes] = useState([]);
   const [selectedOption, setSelectedOption] = useState(null);
   const [showMobileInvestments, setShowMobileInvestments] = useState(false);
+  const [budget, setBudget] = useState({ current: 5000, lastAllocation: 0, totalReceived: 5000 });
 
-  const genNotes = (currentChars, currentMetrics, currentInv) => {
+  const genNotes = (currentChars, currentMetrics, currentInv, currentBudget) => {
     const n = [];
+
+    // Add contextual notifications based on quarter and progress
+    if (round === 1 && handled === 0) {
+      n.unshift({ text: "Fiscal year ending soon. You have £5k remaining.", icon: '📅' });
+    }
+
+    if (round === 1 && done) {
+      n.push({ text: "Budget review meeting tomorrow. Results being reviewed.", icon: '📊' });
+    }
+
+    if (round > 1 && handled === 0) {
+      if (currentBudget.lastAllocation > 5000) {
+        n.unshift({ text: "Finance approved your request. Leadership is impressed.", icon: '🎯' });
+      } else if (currentBudget.lastAllocation >= 4000) {
+        n.unshift({ text: "Standard allocation this quarter. Room to improve.", icon: '📊' });
+      } else if (currentBudget.lastAllocation > 0) {
+        n.unshift({ text: "Budget was reduced. Other teams showed stronger results.", icon: '⚠️' });
+      }
+    }
+
     NOTIFICATIONS.character.forEach(x => { if (x.check(currentChars) && Math.random() > 0.6) n.push({ text: x.text, icon: x.icon }); });
     NOTIFICATIONS.metrics.forEach(x => { if (x.check(currentMetrics) && Math.random() > 0.5) n.push({ text: x.text, icon: x.icon }); });
     NOTIFICATIONS.investment.forEach(x => { if (x.check(currentInv) && Math.random() > 0.6) n.push({ text: x.text, icon: x.icon }); });
+    NOTIFICATIONS.budget.forEach(x => { if (x.check(currentBudget) && Math.random() > 0.5) n.push({ text: x.text, icon: x.icon }); });
+
     if (n.length < 2 && Math.random() > 0.5) {
       const g = NOTIFICATIONS.general[Math.floor(Math.random() * NOTIFICATIONS.general.length)];
       n.push({ text: g.text, icon: g.icon });
@@ -964,13 +1014,34 @@ export default function App() {
   };
 
   // Only regenerate notes when a new event is shown (handled changes) or round starts
-  useEffect(() => { if (phase === 'playing') setNotes(genNotes(chars, metrics, inv)); }, [phase, handled]);
+  useEffect(() => { if (phase === 'playing') setNotes(genNotes(chars, metrics, inv, budget)); }, [phase, handled]);
 
   const pickEvents = useCallback(() => {
     const num = round === 1 ? 2 : round === 4 ? 4 : 3;
     const used = decisions.map(d => d.eventId);
     return [...ALL_EVENTS.filter(e => !used.includes(e.id))].sort(() => Math.random() - 0.5).slice(0, num);
   }, [round, decisions]);
+
+  const allocateBudget = (quarterPot = 20000) => {
+    const compositeScore = (
+      metrics.trust + metrics.engagement + metrics.performance +
+      metrics.fairness + metrics.credibility
+    ) / 5;
+
+    const simulatedCompetitors = [60, 60, 60];
+    const allScores = [compositeScore, ...simulatedCompetitors];
+    const totalScore = allScores.reduce((a, b) => a + b, 0);
+    const playerShare = (compositeScore / totalScore) * quarterPot;
+    const allocation = Math.round(playerShare);
+
+    setBudget(prev => ({
+      current: prev.current + allocation,
+      lastAllocation: allocation,
+      totalReceived: prev.totalReceived + allocation
+    }));
+
+    return allocation;
+  };
 
   const start = () => {
     setPhase('playing');
@@ -983,6 +1054,7 @@ export default function App() {
     setDone(false);
     setInv(INITIAL_INVESTMENTS);
     setSelectedOption(null);
+    setBudget({ current: 5000, lastAllocation: 0, totalReceived: 5000 });
     const e = pickEvents();
     setEvents(e);
     setEvent(e[0] || null);
@@ -1022,16 +1094,11 @@ export default function App() {
 
   const endRound = () => {
     setHistory([...history, { round, ...metrics }]);
-    if (round >= 4) setPhase('results');
-    else {
-      setRound(round + 1);
-      setDone(false);
-      setHandled(0);
-      setInv(INITIAL_INVESTMENTS);
-      setSelectedOption(null);
-      const e = pickEvents();
-      setEvents(e);
-      setEvent(e[0] || null);
+    if (round >= 4) {
+      setPhase('results');
+    } else {
+      allocateBudget(20000);
+      setPhase('budgetAllocation');
     }
   };
 
@@ -1049,6 +1116,7 @@ export default function App() {
     setInv(INITIAL_INVESTMENTS);
     setNotes([]);
     setSelectedOption(null);
+    setBudget({ current: 5000, lastAllocation: 0, totalReceived: 5000 });
   };
 
   const profile = () => {
@@ -1083,6 +1151,111 @@ export default function App() {
           </div>
           <button onClick={start} aria-label="Begin the simulation" className="intro-cta" style={{ fontWeight: 600, fontFamily: "'Poppins', sans-serif", background: COLORS.purple, color: COLORS.white, border: 'none', borderRadius: 50, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: 2, boxShadow: `0 10px 40px ${COLORS.purple}40`, minHeight: 56 }}>Begin Simulation</button>
           <p style={{ marginTop: 24, fontSize: '0.8rem', color: `${COLORS.white}99` }}>Demo Version • Single Player • 4 Quarters</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'budgetAllocation') {
+    const allocation = budget.lastAllocation;
+    const compositeScore = (
+      metrics.trust + metrics.engagement + metrics.performance +
+      metrics.fairness + metrics.credibility
+    ) / 5;
+
+    const narrative = allocation > 6000
+      ? "Outstanding performance. Your team's results exceeded expectations."
+      : allocation > 5000
+        ? "Strong performance. Your balanced approach is paying dividends."
+        : allocation > 4000
+          ? "Solid performance. You're meeting targets, but there's room for improvement."
+          : "Performance concerns. Leadership is watching closely.";
+
+    return (
+      <div role="main" aria-label="Budget Allocation" style={{
+        width: '100vw', minHeight: '100vh',
+        background: `linear-gradient(135deg, ${COLORS.black} 0%, ${COLORS.darkPurple} 100%)`,
+        fontFamily: "'Poppins', sans-serif",
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', padding: 20
+      }}>
+        <style>{styles}</style>
+
+        <div style={{
+          maxWidth: 600, width: '100%',
+          background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`,
+          borderRadius: 20, padding: 40,
+          border: `1px solid ${COLORS.purple}40`,
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '0.8rem', color: COLORS.purple,
+                        textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>
+            Q{round} Budget Allocation
+          </div>
+
+          <h1 style={{ fontSize: 'clamp(1.8rem, 6vw, 2.5rem)', fontWeight: 700,
+                       color: COLORS.white, margin: '0 0 20px 0' }}>
+            Performance Review
+          </h1>
+
+          <div style={{ marginBottom: 30 }}>
+            <div style={{ fontSize: '0.9rem', color: `${COLORS.white}cc`, marginBottom: 8 }}>
+              Your Composite Score
+            </div>
+            <div style={{ fontSize: '3rem', fontWeight: 700, color: COLORS.teal, marginBottom: 15 }}>
+              {Math.round(compositeScore)}
+            </div>
+            <div style={{ fontSize: '0.85rem', color: `${COLORS.white}99`, lineHeight: 1.6,
+                         padding: '15px 20px', background: `${COLORS.black}40`, borderRadius: 12,
+                         marginBottom: 20 }}>
+              {narrative}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 30 }}>
+            <div style={{ fontSize: '0.75rem', color: `${COLORS.white}99`, marginBottom: 8 }}>
+              Company Quarterly Pot
+            </div>
+            <div style={{ fontSize: '1.2rem', color: `${COLORS.white}cc`, marginBottom: 20 }}>
+              £20,000
+            </div>
+
+            <div style={{ fontSize: '0.75rem', color: COLORS.purple, marginBottom: 8,
+                         textTransform: 'uppercase', letterSpacing: 1 }}>
+              Your Allocation
+            </div>
+            <div className="count-up" style={{
+              fontSize: 'clamp(2.5rem, 8vw, 4rem)', fontWeight: 700,
+              color: COLORS.yellow, marginBottom: 10,
+              animation: 'countUp 1.5s ease-out'
+            }}>
+              £{allocation.toLocaleString()}
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              setRound(round + 1);
+              setDone(false);
+              setHandled(0);
+              setInv(INITIAL_INVESTMENTS);
+              setSelectedOption(null);
+              const e = pickEvents();
+              setEvents(e);
+              setEvent(e[0] || null);
+              setPhase('playing');
+            }}
+            style={{
+              padding: '14px 40px', background: COLORS.purple,
+              border: 'none', borderRadius: 25, color: COLORS.white,
+              fontFamily: "'Poppins', sans-serif", fontSize: '0.95rem',
+              fontWeight: 600, cursor: 'pointer',
+              textTransform: 'uppercase', letterSpacing: 2, minHeight: 52,
+              boxShadow: `0 10px 30px ${COLORS.purple}40`
+            }}
+          >
+            Start Q{round + 1}
+          </button>
         </div>
       </div>
     );
@@ -1139,15 +1312,48 @@ export default function App() {
   }
 
   // Render investment sliders component (used in both desktop sidebar and mobile drawer)
-  const renderInvestments = () => (
-    <>
-      <div style={{ fontSize: '0.7rem', color: `${COLORS.white}cc`, marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${COLORS.white}10`, fontWeight: 500 }}>BUDGET</div>
-      {BUDGET_INVESTMENTS.map(x => (
-        <div key={x.id} style={{ marginBottom: 8 }}>
-          <label htmlFor={`slider-${x.id}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: `${COLORS.white}cc`, fontSize: '0.75rem' }}><span aria-hidden="true">{x.icon}</span> {x.label}</span><span style={{ color: inv[x.id] ? COLORS.teal : `${COLORS.white}99`, fontWeight: 600, fontSize: '0.85rem' }}>{inv[x.id]}%</span></label>
-          <input id={`slider-${x.id}`} type="range" min="0" max="100" step="10" value={inv[x.id]} onChange={e => setInv({ ...inv, [x.id]: +e.target.value })} aria-label={`${x.label} investment: ${inv[x.id]} percent`} />
+  const renderInvestments = () => {
+    const totalCost = calculateInvestmentCost(inv);
+    const canAfford = totalCost <= budget.current;
+    const budgetRemaining = budget.current - totalCost;
+
+    return (
+      <>
+        <div style={{ fontSize: '0.7rem', color: canAfford ? COLORS.teal : COLORS.yellow, marginBottom: 8, padding: '6px 8px', background: `${COLORS.black}40`, borderRadius: 6 }}>
+          {budget.current === 0 ? (
+            <><span aria-hidden="true">🚫</span> Budget: £0 - Time investments only</>
+          ) : (
+            <><span aria-hidden="true">💰</span> Budget: £{budgetRemaining.toLocaleString()} remaining</>
+          )}
         </div>
-      ))}
+        {BUDGET_INVESTMENTS.map(x => {
+          const cost = (inv[x.id] / 10) * INVESTMENT_COSTS[x.id];
+          const disabled = budget.current === 0;
+
+          return (
+            <div key={x.id} style={{ marginBottom: 8, opacity: disabled ? 0.5 : 1 }}>
+              <label htmlFor={`slider-${x.id}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                <span style={{ color: `${COLORS.white}cc`, fontSize: '0.75rem' }}>
+                  <span aria-hidden="true">{x.icon}</span> {x.label}
+                </span>
+                <span style={{ color: inv[x.id] ? COLORS.teal : `${COLORS.white}99`, fontWeight: 600, fontSize: '0.85rem' }}>
+                  {inv[x.id]}% <span style={{ fontSize: '0.7rem', color: `${COLORS.white}70` }}>(£{cost})</span>
+                </span>
+              </label>
+              <input
+                id={`slider-${x.id}`}
+                type="range"
+                min="0"
+                max="100"
+                step="10"
+                value={inv[x.id]}
+                onChange={e => setInv({ ...inv, [x.id]: +e.target.value })}
+                disabled={disabled}
+                aria-label={`${x.label} investment: ${inv[x.id]} percent, costs £${cost}`}
+              />
+            </div>
+          );
+        })}
       <div style={{ fontSize: '0.7rem', color: `${COLORS.white}cc`, marginTop: 12, marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${COLORS.white}10`, fontWeight: 500 }}>TIME</div>
       {TIME_INVESTMENTS.map(x => (
         <div key={x.id} style={{ marginBottom: 8 }}>
@@ -1155,8 +1361,9 @@ export default function App() {
           <input id={`slider-${x.id}`} type="range" min="0" max="100" step="10" value={inv[x.id]} onChange={e => setInv({ ...inv, [x.id]: +e.target.value })} aria-label={`${x.label} investment: ${inv[x.id]} percent`} />
         </div>
       ))}
-    </>
-  );
+      </>
+    );
+  };
 
   return (
     <div role="main" aria-label={`Under Pressure - Quarter ${round} of 4`} style={{ width: '100vw', minHeight: '100vh', background: COLORS.black, fontFamily: "'Poppins', sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1169,6 +1376,9 @@ export default function App() {
           <img src="/jam-pan-logo.png" alt="Jam Pan" style={{ height: 24 }} onError={(e) => { e.target.style.display = 'none'; }} />
           <span className="brand-text" style={{ fontSize: '1rem', fontWeight: 700, color: COLORS.white }}>UNDER <span style={{ color: COLORS.purple }}>PRESSURE</span></span>
           <div aria-label={`Quarter ${round} of 4`} style={{ background: `${COLORS.purple}30`, padding: '4px 12px', borderRadius: 15, fontSize: '0.75rem', color: COLORS.purple, fontWeight: 600 }}>Q{round}/4</div>
+          <div aria-label={`Budget: £${budget.current.toLocaleString()}`} style={{ background: `${COLORS.teal}30`, padding: '4px 12px', borderRadius: 15, fontSize: '0.75rem', color: COLORS.teal, fontWeight: 600 }}>
+            💰 £{budget.current.toLocaleString()}
+          </div>
         </div>
 
         {/* Desktop navigation - hidden on mobile */}
@@ -1237,8 +1447,12 @@ export default function App() {
             </aside>
             {/* Middle column - event and observations */}
             <div className="middle-column">
-              {event && !done ? (
-                <article aria-labelledby="event-title" className="event-panel" style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, display: 'flex', flexDirection: 'column', border: `1px solid ${COLORS.purple}30` }}>
+              {event && !done ? (() => {
+                const totalCost = calculateInvestmentCost(inv);
+                const canAfford = totalCost <= budget.current;
+
+                return (
+                  <article aria-labelledby="event-title" className="event-panel" style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, display: 'flex', flexDirection: 'column', border: `1px solid ${COLORS.purple}30` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                     <span style={{ background: `${COLORS.purple}30`, padding: '4px 10px', borderRadius: 12, fontSize: '0.65rem', color: COLORS.purple, fontWeight: 600, textTransform: 'uppercase' }}>{event.category}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: `${COLORS.white}99`, fontSize: '0.75rem' }}><span aria-hidden="true">{getDeliveryIcon(event.delivery)}</span><span style={{ textTransform: 'capitalize' }}>via {event.delivery.replace('_', ' ')}</span></span>
@@ -1247,7 +1461,9 @@ export default function App() {
                   <p style={{ fontSize: '0.95rem', color: `${COLORS.white}cc`, lineHeight: 1.6, marginBottom: 12 }}>{event.description}</p>
                   {event.character && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '6px 10px', background: `${COLORS.black}40`, borderRadius: 8, width: 'fit-content' }}><span aria-hidden="true" style={{ fontSize: '1.2rem' }}>{chars.find(c => c.id === event.character)?.avatar}</span><span style={{ color: `${COLORS.white}cc`, fontSize: '0.8rem' }}>Involves: <strong style={{ color: COLORS.white }}>{chars.find(c => c.id === event.character)?.name}</strong></span></div>}
                   <fieldset style={{ border: 'none', margin: 0, padding: 0, marginTop: 'auto' }}>
-                    <legend className="sr-only">Choose your response</legend>
+                    <legend style={{ fontSize: '0.85rem', color: COLORS.purple, marginBottom: 8, fontWeight: 600, animation: selectedOption === null ? 'pulseText 2s ease-in-out infinite' : 'none' }}>
+                      Choose your response:
+                    </legend>
                     <div role="radiogroup" aria-label="Decision options" className="options-grid">{event.options.map((o, i) => (
                       <button
                         key={`option-${event.id}-${i}`}
@@ -1258,14 +1474,38 @@ export default function App() {
                         onBlur={e => { if (selectedOption !== i) { e.target.style.borderColor = `${COLORS.white}15`; e.target.style.background = `${COLORS.black}50`; }}}
                         onMouseOver={e => { if (selectedOption !== i) { e.target.style.borderColor = COLORS.purple + '80'; e.target.style.background = `${COLORS.purple}20`; }}}
                         onMouseOut={e => { if (selectedOption !== i) { e.target.style.borderColor = `${COLORS.white}15`; e.target.style.background = `${COLORS.black}50`; }}}
-                        style={{ background: selectedOption === i ? `${COLORS.purple}40` : `${COLORS.black}50`, border: `2px solid ${selectedOption === i ? COLORS.purple : COLORS.white + '15'}`, borderRadius: 10, color: COLORS.white, fontFamily: "'Poppins', sans-serif", cursor: 'pointer', transition: 'border-color 0.15s ease-out, background 0.15s ease-out' }}
+                        style={{ background: selectedOption === i ? `${COLORS.purple}40` : `${COLORS.black}50`, border: selectedOption === i ? `2px solid ${COLORS.purple}` : `2px dashed ${COLORS.white}15`, borderRadius: 10, color: COLORS.white, fontFamily: "'Poppins', sans-serif", cursor: 'pointer', transition: 'all 0.2s ease-out' }}
                       >{o.text}</button>
                     ))}</div>
                   </fieldset>
-                  <button onClick={decide} disabled={selectedOption === null} aria-disabled={selectedOption === null} className="confirm-btn" style={{ background: selectedOption !== null ? COLORS.purple : `${COLORS.white}20`, border: 'none', borderRadius: 25, color: selectedOption !== null ? COLORS.white : `${COLORS.white}70`, fontFamily: "'Poppins', sans-serif", fontWeight: 600, cursor: selectedOption !== null ? 'pointer' : 'not-allowed', textTransform: 'uppercase', transition: 'background 0.2s ease-out', opacity: selectedOption !== null ? 1 : 0.7 }}>Confirm Decision</button>
+                  <button
+                    onClick={decide}
+                    disabled={selectedOption === null || !canAfford}
+                    aria-disabled={selectedOption === null || !canAfford}
+                    className="confirm-btn"
+                    style={{
+                      background: selectedOption !== null && canAfford ? COLORS.purple : `${COLORS.white}20`,
+                      border: 'none',
+                      borderRadius: 25,
+                      color: selectedOption !== null && canAfford ? COLORS.white : `${COLORS.white}70`,
+                      fontFamily: "'Poppins', sans-serif",
+                      fontWeight: 600,
+                      cursor: selectedOption !== null && canAfford ? 'pointer' : 'not-allowed',
+                      textTransform: 'uppercase',
+                      transition: 'background 0.2s ease-out',
+                      opacity: selectedOption !== null && canAfford ? 1 : 0.7
+                    }}
+                  >
+                    {selectedOption === null
+                      ? 'Select an option above'
+                      : !canAfford
+                        ? 'Reduce investments - over budget'
+                        : 'Confirm Decision'}
+                  </button>
                   <div aria-label={`Progress: ${handled} of ${events.length + handled} events completed`} style={{ marginTop: 12, display: 'flex', justifyContent: 'center', gap: 5 }}>{[...Array(events.length + handled)].map((_, i) => (<div key={`progress-${i}`} aria-hidden="true" style={{ width: i < handled ? 22 : 7, height: 3, borderRadius: 2, background: i < handled ? COLORS.teal : i === handled ? COLORS.purple : `${COLORS.white}20` }} />))}</div>
                 </article>
-              ) : done ? (
+                );
+              })() : done ? (
                 <section aria-label="Quarter complete" style={{ background: `linear-gradient(135deg, ${COLORS.darkTeal}50 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 35, flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: `1px solid ${COLORS.teal}30`, textAlign: 'center' }}>
                   <div aria-hidden="true" style={{ fontSize: '3.5rem', marginBottom: 15 }}>✓</div>
                   <h2 style={{ fontSize: '1.6rem', fontWeight: 700, color: COLORS.white, margin: '0 0 12px 0' }}>Quarter {round} Complete</h2>

@@ -16,11 +16,17 @@ You're a middle manager leading a team of five through a challenging quarter. Ev
 
 **Your Load** — Your personal stress level. Push too hard and it catches up with you.
 
-**Investments** — How you choose to spend your time and budget this quarter:
-- *Budget*: Training, Team Activities, Tools, Recognition
-- *Time*: 1:1s, Coaching, Strategy, Your Wellbeing
+**Budget** — Financial resources for team investments:
+- Start with £5,000 each year
+- Earn more budget quarterly based on your team's performance
+- Budget investments cost money; time investments are always free
+- When funds run low, you'll need to prioritize carefully
 
-These default to zero. Adjust them however you see fit. There's no "right" answer.
+**Investments** — How you choose to spend your time and budget:
+- *Budget*: Training (£200/10%), Team Activities (£150/10%), Tools (£250/10%), Recognition (£100/10%)
+- *Time*: 1:1s, Coaching, Strategy, Your Wellbeing (always free)
+
+Budget investments require funds. Time investments are always available. Adjust investments each quarter based on your available budget.
 
 ### Middle Panel: What's Happening
 
@@ -43,6 +49,25 @@ Five individuals, each with their own personality, history, and current state. T
 5. **Click "Confirm Decision"** when ready to commit
 
 Once confirmed, you move to the next situation. There's no going back.
+
+---
+
+## The Budget System
+
+Between quarters, you'll attend a budget review meeting where you receive funding based on your team's performance:
+
+**How Allocation Works:**
+- Your composite score (average of Trust, Engagement, Performance, Fairness, Credibility) determines your share
+- You compete with other teams for a £20,000 quarterly pot
+- Strong performance (70+) yields £6,000+
+- Average performance (60-70) yields £4,500-£6,000
+- Weak performance (<60) yields under £4,500
+
+**Managing Your Budget:**
+- Unspent budget carries forward to the next quarter
+- Plan ahead: some investments cost more than others
+- If funds run out, you'll rely solely on time investments
+- Budget constraints force tough prioritization decisions
 
 ---
 
