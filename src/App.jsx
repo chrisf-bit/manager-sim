@@ -1180,6 +1180,13 @@ export default function App() {
   };
 
   const start = () => {
+    // Request fullscreen mode
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.log('Fullscreen request failed:', err);
+      });
+    }
+
     setPhase('playing');
     setRound(1);
     setMetrics(INITIAL_METRICS);
