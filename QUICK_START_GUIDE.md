@@ -16,6 +16,12 @@ You're a middle manager leading a team of five through a challenging quarter. Ev
 
 **Your Load** — Your personal stress level. Push too hard and it catches up with you.
 
+**Team Capacity** — Shows how many team members remain active:
+- Displays active members out of 5 total
+- Shows average workload percentage
+- Green when healthy, yellow when understaffed
+- Watch for overload warnings
+
 **Budget** — Financial resources for team investments:
 - Start with £5,000 each year
 - Earn more budget quarterly based on your team's performance
@@ -37,6 +43,13 @@ Budget investments require funds. Time investments are always available. Adjust 
 ### Right Panel: Your Team
 
 Five individuals, each with their own personality, history, and current state. Their trust and engagement shift based on your decisions.
+
+When team members are overloaded, you'll see workload indicators:
+- 🔥 **BURNOUT RISK** — Over 140% capacity
+- ⚠️ **OVERLOADED** — Over 120% capacity
+- ⚡ **STRETCHED** — Over 100% capacity
+
+Departed members appear grayed out with a **DEPARTED** badge.
 
 ---
 
@@ -68,6 +81,45 @@ Between quarters, you'll attend a budget review meeting where you receive fundin
 - Plan ahead: some investments cost more than others
 - If funds run out, you'll rely solely on time investments
 - Budget constraints force tough prioritization decisions
+
+---
+
+## Attrition & Burnout
+
+Your team has limits. Push too hard, and people will leave. When they do, the remaining team absorbs their workload—and the cycle accelerates.
+
+**How Capacity Works:**
+- Each team member has 20 capacity units
+- Full team capacity: 100 units (5 people × 20)
+- Work demand stays constant at 100 units
+- When someone leaves, their work redistributes equally among remaining members
+
+**Burnout Penalties:**
+- Workload over 100% causes burnout
+- For every 10% overload: -5 engagement, -3 trust
+- Example: If 4 people remain, each carries 125% load = -10 engagement, -6 trust per quarter
+- Characters at 140%+ load become at-risk and may leave
+
+**What Triggers Departures:**
+- High performers (80+) who feel undervalued (low trust/fairness)
+- Low engagement (<35) or trust (<40)
+- Unsustainable workload (120%+ load)
+- Maximum one departure per quarter
+
+**Warning Signs:**
+- 🔥 **BURNOUT RISK** badge appears at 140%+ workload
+- ⚠️ **OVERLOADED** badge appears at 120%+ workload
+- **RISK** badge shows characters at risk of leaving
+- Notifications like "Someone updated their LinkedIn profile"
+- Team capacity widget shows reduced headcount
+
+**When Someone Leaves:**
+- You'll see a departure screen with their reason
+- Team morale drops (-5 trust, -8 engagement across remaining members)
+- Workload per person increases immediately
+- Their desk stays empty for the rest of the game
+
+The death spiral is real: Poor decisions → First departure → Higher workload → Burnout → More departures.
 
 ---
 

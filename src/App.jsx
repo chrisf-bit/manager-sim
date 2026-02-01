@@ -1728,34 +1728,6 @@ export default function App() {
                   <div role="progressbar" aria-valuenow={Math.round(metrics.emotionalLoad)} aria-valuemin="0" aria-valuemax="100" aria-label={`Your load: ${Math.round(metrics.emotionalLoad)} percent`} style={{ height: 4, background: `${COLORS.white}10`, borderRadius: 2 }}><div style={{ width: `${metrics.emotionalLoad}%`, height: '100%', background: metrics.emotionalLoad > 60 ? COLORS.yellow : COLORS.teal, borderRadius: 2 }} /></div>
                 </div>
               </section>
-              <section aria-labelledby="team-capacity-heading" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10` }}>
-                <h2 id="team-capacity-heading" style={{ fontSize: '0.75rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10, fontWeight: 600 }}>👥 Team Capacity</h2>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-                  <span style={{
-                    fontSize: '2.5rem', fontWeight: 700,
-                    color: teamCapacity >= 4 ? COLORS.teal : COLORS.yellow
-                  }}>{teamCapacity}</span>
-                  <span style={{ fontSize: '1rem', color: `${COLORS.white}70` }}>/ 5</span>
-                </div>
-                <div style={{ fontSize: '0.75rem', color: `${COLORS.white}cc`, marginBottom: 10 }}>
-                  {teamCapacity === 5 ? 'Full team capacity' :
-                   teamCapacity >= 4 ? 'Slightly reduced capacity' : 'Significantly understaffed'}
-                </div>
-                {teamCapacity > 0 && (
-                  <div style={{ background: `${COLORS.black}30`, padding: 10, borderRadius: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: '0.65rem', color: `${COLORS.white}99` }}>Avg. Workload</span>
-                      <span style={{
-                        fontSize: '0.85rem', fontWeight: 600,
-                        color: chars.filter(c => !c.departed)[0]?.loadPercent > 120 ? '#ff4757' :
-                               chars.filter(c => !c.departed)[0]?.loadPercent > 100 ? COLORS.yellow : COLORS.teal
-                      }}>
-                        {Math.round(chars.filter(c => !c.departed)[0]?.loadPercent || 100)}%
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </section>
               <section className="investments-section" aria-labelledby="investments-heading" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10`, flex: 1 }}>
                 <h2 id="investments-heading" style={{ fontSize: '0.75rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10, fontWeight: 600 }}>Investments</h2>
                 {renderInvestments()}
@@ -1871,7 +1843,49 @@ export default function App() {
           </div>
         )}
         {tab === 'team' && (
-          <div role="tabpanel" id="team-panel" aria-label="Team view" className="team-grid" style={{ flex: 1 }}>
+          <div role="tabpanel" id="team-panel" aria-label="Team view" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Team Capacity Widget */}
+            <section aria-labelledby="team-capacity-heading" style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 16, padding: 20, border: `1px solid ${COLORS.white}10` }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20 }}>
+                <div>
+                  <h2 id="team-capacity-heading" style={{ fontSize: '0.75rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8, fontWeight: 600 }}>👥 Team Capacity</h2>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+                    <span style={{
+                      fontSize: '3rem', fontWeight: 700,
+                      color: teamCapacity >= 4 ? COLORS.teal : COLORS.yellow
+                    }}>{teamCapacity}</span>
+                    <span style={{ fontSize: '1.2rem', color: `${COLORS.white}70` }}>/ 5 members</span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: `${COLORS.white}cc` }}>
+                    {teamCapacity === 5 ? 'Full team capacity' :
+                     teamCapacity >= 4 ? 'Slightly reduced capacity' : 'Significantly understaffed'}
+                  </div>
+                </div>
+                {teamCapacity > 0 && (
+                  <div style={{ background: `${COLORS.black}40`, padding: 16, borderRadius: 12, minWidth: 180 }}>
+                    <div style={{ fontSize: '0.7rem', color: `${COLORS.white}99`, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Average Workload</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                      <span style={{
+                        fontSize: '2.5rem', fontWeight: 700,
+                        color: chars.filter(c => !c.departed)[0]?.loadPercent > 120 ? '#ff4757' :
+                               chars.filter(c => !c.departed)[0]?.loadPercent > 100 ? COLORS.yellow : COLORS.teal
+                      }}>
+                        {Math.round(chars.filter(c => !c.departed)[0]?.loadPercent || 100)}
+                      </span>
+                      <span style={{ fontSize: '1.2rem', color: `${COLORS.white}70` }}>%</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: `${COLORS.white}99`, marginTop: 4 }}>
+                      {chars.filter(c => !c.departed)[0]?.loadPercent > 140 ? '🔥 Critical burnout risk' :
+                       chars.filter(c => !c.departed)[0]?.loadPercent > 120 ? '⚠️ Team overloaded' :
+                       chars.filter(c => !c.departed)[0]?.loadPercent > 100 ? '⚡ Above capacity' : '✓ Sustainable load'}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Team Members Grid */}
+            <div className="team-grid" style={{ display: 'grid', gap: 16 }}>
             {chars.map(c => (
               <article key={c.id} aria-label={`${c.name} - ${c.role}`} style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 16, padding: 20, border: `1px solid ${c.atRisk ? COLORS.yellow : COLORS.white}20`, display: 'flex', flexDirection: 'column', opacity: c.departed ? 0.5 : 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 15 }}><div aria-hidden="true" style={{ fontSize: '3rem', background: `${COLORS.black}50`, borderRadius: '50%', width: 70, height: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{c.avatar}</div><div><h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600, color: COLORS.white }}>{c.name}</h3><p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: `${COLORS.white}99` }}>{c.role}</p><p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: `${COLORS.white}70` }}>{c.tenure}</p></div>{c.departed ? <div aria-label="Departed" style={{ marginLeft: 'auto', background: `${COLORS.white}20`, color: `${COLORS.white}70`, padding: '4px 10px', borderRadius: 12, fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase' }}>DEPARTED</div> : c.atRisk ? <div aria-label="At risk" style={{ marginLeft: 'auto', background: `${COLORS.yellow}20`, color: COLORS.yellow, padding: '4px 10px', borderRadius: 12, fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase' }}>RISK</div> : null}</div>
@@ -1897,6 +1911,7 @@ export default function App() {
                 <div style={{ flex: 1 }}><div style={{ fontSize: '0.7rem', color: `${COLORS.white}70`, marginBottom: 4 }}>Drivers</div><p style={{ fontSize: '0.8rem', color: `${COLORS.white}cc`, lineHeight: 1.4, margin: '0 0 8px 0' }}>{c.drivers}</p><div style={{ fontSize: '0.7rem', color: `${COLORS.white}70`, marginBottom: 4 }}>Sensitivity</div><p style={{ fontSize: '0.8rem', color: `${COLORS.white}cc`, lineHeight: 1.4, margin: 0 }}>{c.sensitivity}</p></div>
               </article>
             ))}
+            </div>
           </div>
         )}
       </div>
