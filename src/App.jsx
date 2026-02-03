@@ -2135,7 +2135,13 @@ export default function App() {
           )}
         </div>
 
-        <div className="header-actions hide-mobile">
+        <div className="header-actions hide-mobile" style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => { setShowTutorial(true); setTutorialStep(0); setTab('dashboard'); }}
+            aria-label="Show tutorial"
+            title="Show tutorial"
+            style={{ padding: '8px 12px', background: 'transparent', border: `1px solid ${COLORS.purple}50`, color: COLORS.purple, borderRadius: 10, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: '0.9rem', fontWeight: 600, minHeight: 40 }}
+          >?</button>
           <button onClick={reset} aria-label="Reset simulation" className="reset-btn" style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${COLORS.white}50`, color: `${COLORS.white}cc`, borderRadius: 10, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: '0.75rem', minHeight: 40 }}>Reset</button>
         </div>
       </header>
@@ -2405,6 +2411,14 @@ export default function App() {
             {t.label}
           </button>
         ))}
+        <button
+          onClick={() => { setShowTutorial(true); setTutorialStep(0); setTab('dashboard'); }}
+          className="mobile-nav-btn"
+          aria-label="Show tutorial"
+        >
+          <span aria-hidden="true">?</span>
+          Help
+        </button>
         <button
           onClick={reset}
           className="mobile-nav-btn"
