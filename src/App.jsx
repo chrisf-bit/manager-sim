@@ -8,10 +8,10 @@ const COLORS = {
 };
 
 const BUDGET_INVESTMENTS = [
-  { id: 'training', label: 'Training', icon: '📚', effects: { engagement: 0.08, performance: 0.06, credibility: 0.04 } },
-  { id: 'teamBuilding', label: 'Team Activities', icon: '🎯', effects: { trust: 0.1, engagement: 0.06, fairness: 0.04 } },
-  { id: 'tools', label: 'Tools', icon: '🛠️', effects: { performance: 0.08, engagement: 0.04, retention: 0.06 } },
-  { id: 'recognition', label: 'Recognition', icon: '🏆', effects: { trust: 0.06, engagement: 0.08, fairness: 0.06 } },
+  { id: 'training', label: 'Training', icon: '📚', effects: { engagement: 0.08, performance: 0.06, credibility: 0.04 }, helpText: 'Develops skills and knowledge. Affects engagement, performance, and credibility.' },
+  { id: 'teamBuilding', label: 'Team Activities', icon: '🎯', effects: { trust: 0.1, engagement: 0.06, fairness: 0.04 }, helpText: 'Social and team-building events. Affects trust, engagement, and fairness.' },
+  { id: 'tools', label: 'Tools', icon: '🛠️', effects: { performance: 0.08, engagement: 0.04, retention: 0.06 }, helpText: 'Better equipment and software. Affects performance, engagement, and retention.' },
+  { id: 'recognition', label: 'Recognition', icon: '🏆', effects: { trust: 0.06, engagement: 0.08, fairness: 0.06 }, helpText: 'Rewards and acknowledgment programs. Affects trust, engagement, and fairness.' },
 ];
 
 const INVESTMENT_COSTS = {
@@ -26,10 +26,10 @@ const INVESTMENT_COSTS = {
 };
 
 const TIME_INVESTMENTS = [
-  { id: 'oneOnOnes', label: '1:1s', icon: '💬', effects: { trust: 0.1, credibility: 0.08, fairness: 0.04 }, loadEffect: 0.15 },
-  { id: 'coaching', label: 'Coaching', icon: '🎓', effects: { performance: 0.06, engagement: 0.06, credibility: 0.06 }, loadEffect: 0.2 },
-  { id: 'strategy', label: 'Strategy', icon: '📊', effects: { performance: 0.08, credibility: 0.08 }, loadEffect: 0.08 },
-  { id: 'selfCare', label: 'Your Wellbeing', icon: '🧘', effects: { credibility: 0.04 }, loadEffect: -0.5 },
+  { id: 'oneOnOnes', label: '1:1s', icon: '💬', effects: { trust: 0.1, credibility: 0.08, fairness: 0.04 }, loadEffect: 0.15, helpText: 'Regular individual meetings. Affects trust, credibility, and fairness. Adds to your load.' },
+  { id: 'coaching', label: 'Coaching', icon: '🎓', effects: { performance: 0.06, engagement: 0.06, credibility: 0.06 }, loadEffect: 0.2, helpText: 'Hands-on skill development. Affects performance, engagement, and credibility. High time cost.' },
+  { id: 'strategy', label: 'Strategy', icon: '📊', effects: { performance: 0.08, credibility: 0.08 }, loadEffect: 0.08, helpText: 'Planning and direction-setting. Affects performance and credibility. Moderate time cost.' },
+  { id: 'selfCare', label: 'Your Wellbeing', icon: '🧘', effects: { credibility: 0.04 }, loadEffect: -0.5, helpText: 'Time for your own wellbeing. Reduces your personal load significantly.' },
 ];
 
 const TUTORIAL_STEPS = [
@@ -1025,6 +1025,7 @@ export default function App() {
   const [showTutorialPrompt, setShowTutorialPrompt] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
+  const [hasSeenTabsHint, setHasSeenTabsHint] = useState(false);
 
   // Tutorial target refs
   const metricsRef = useRef(null);
@@ -1328,8 +1329,12 @@ export default function App() {
   const pickEvents = useCallback(() => {
     const num = round === 1 ? 2 : round === 4 ? 4 : 3;
     const used = decisions.map(d => d.eventId);
-    return [...ALL_EVENTS.filter(e => !used.includes(e.id))].sort(() => Math.random() - 0.5).slice(0, num);
-  }, [round, decisions]);
+    const departedIds = chars.filter(c => c.departed).map(c => c.id);
+    return [...ALL_EVENTS.filter(e =>
+      !used.includes(e.id) &&
+      (!e.character || !departedIds.includes(e.character))
+    )].sort(() => Math.random() - 0.5).slice(0, num);
+  }, [round, decisions, chars]);
 
   const allocateBudget = (quarterPot = 20000) => {
     const compositeScore = (
@@ -1589,6 +1594,7 @@ export default function App() {
     setShowTutorialPrompt(false);
     setShowTutorial(false);
     setTutorialStep(0);
+    setHasSeenTabsHint(false);
   };
 
   const profile = () => {
@@ -1998,7 +2004,7 @@ export default function App() {
           const disabled = budget.current === 0;
 
           return (
-            <div key={x.id} style={{ marginBottom: 8, opacity: disabled ? 0.5 : 1 }}>
+            <div key={x.id} style={{ marginBottom: 12, opacity: disabled ? 0.5 : 1 }}>
               <label htmlFor={`slider-${x.id}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                 <span style={{ color: `${COLORS.white}cc`, fontSize: '0.75rem' }}>
                   <span aria-hidden="true">{x.icon}</span> {x.label}
@@ -2018,16 +2024,36 @@ export default function App() {
                 disabled={disabled}
                 aria-label={`${x.label} investment: ${inv[x.id]} percent, costs £${cost}`}
               />
+              <div style={{ fontSize: '0.65rem', color: `${COLORS.white}60`, marginTop: 2, lineHeight: 1.3 }}>{x.helpText}</div>
             </div>
           );
         })}
-      <div style={{ fontSize: '0.7rem', color: `${COLORS.white}cc`, marginTop: 12, marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${COLORS.white}10`, fontWeight: 500 }}>TIME</div>
-      {TIME_INVESTMENTS.map(x => (
-        <div key={x.id} style={{ marginBottom: 8 }}>
-          <label htmlFor={`slider-${x.id}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: `${COLORS.white}cc`, fontSize: '0.75rem' }}><span aria-hidden="true">{x.icon}</span> {x.label}</span><span style={{ color: inv[x.id] ? COLORS.blue : `${COLORS.white}99`, fontWeight: 600, fontSize: '0.85rem' }}>{inv[x.id]}%</span></label>
-          <input id={`slider-${x.id}`} type="range" min="0" max="100" step="10" value={inv[x.id]} onChange={e => setInv({ ...inv, [x.id]: +e.target.value })} aria-label={`${x.label} investment: ${inv[x.id]} percent`} />
-        </div>
-      ))}
+      {(() => {
+        const totalTime = TIME_INVESTMENTS.reduce((sum, x) => sum + inv[x.id], 0);
+        const timeRemaining = 100 - totalTime;
+        const isOverAllocated = totalTime > 100;
+        return (
+          <>
+            <div style={{ fontSize: '0.7rem', color: `${COLORS.white}cc`, marginTop: 12, marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${COLORS.white}10`, fontWeight: 500 }}>TIME</div>
+            <div style={{ fontSize: '0.7rem', color: isOverAllocated ? '#ff4757' : COLORS.blue, marginBottom: 8, padding: '6px 8px', background: `${COLORS.black}40`, borderRadius: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span><span aria-hidden="true">⏱️</span> Time: {timeRemaining >= 0 ? `${timeRemaining}% remaining` : `${Math.abs(timeRemaining)}% over capacity`}</span>
+                <span style={{ fontWeight: 600 }}>{totalTime}% used</span>
+              </div>
+              <div style={{ height: 4, background: `${COLORS.white}15`, borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.min(totalTime, 100)}%`, height: '100%', background: isOverAllocated ? '#ff4757' : COLORS.blue, borderRadius: 2, transition: 'width 0.2s ease-out' }} />
+              </div>
+            </div>
+            {TIME_INVESTMENTS.map(x => (
+              <div key={x.id} style={{ marginBottom: 12 }}>
+                <label htmlFor={`slider-${x.id}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: `${COLORS.white}cc`, fontSize: '0.75rem' }}><span aria-hidden="true">{x.icon}</span> {x.label}</span><span style={{ color: inv[x.id] ? COLORS.blue : `${COLORS.white}99`, fontWeight: 600, fontSize: '0.85rem' }}>{inv[x.id]}%</span></label>
+                <input id={`slider-${x.id}`} type="range" min="0" max="100" step="10" value={inv[x.id]} onChange={e => setInv({ ...inv, [x.id]: +e.target.value })} aria-label={`${x.label} investment: ${inv[x.id]} percent`} />
+                <div style={{ fontSize: '0.65rem', color: `${COLORS.white}60`, marginTop: 2, lineHeight: 1.3 }}>{x.helpText}</div>
+              </div>
+            ))}
+          </>
+        );
+      })()}
       </>
     );
   };
@@ -2049,7 +2075,65 @@ export default function App() {
         </div>
 
         {/* Desktop navigation - hidden on mobile */}
-        <nav role="tablist" aria-label="View selection" className="header-nav hide-mobile">{['dashboard', 'insights', 'team'].map(t => (<button key={t} role="tab" aria-selected={tab === t} aria-controls={`${t}-panel`} onClick={() => setTab(t)} className="nav-tab" style={{ padding: '8px 16px', background: tab === t ? COLORS.purple : 'transparent', border: 'none', borderRadius: 12, color: tab === t ? COLORS.white : `${COLORS.white}cc`, fontFamily: "'Poppins', sans-serif", fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: 1, minHeight: 40 }}>{t}</button>))}</nav>
+        <div className="hide-mobile" style={{ position: 'relative' }}>
+          <nav role="tablist" aria-label="View selection" className="header-nav">{['dashboard', 'insights', 'team'].map(t => (<button key={t} role="tab" aria-selected={tab === t} aria-controls={`${t}-panel`} onClick={() => setTab(t)} className="nav-tab" style={{ padding: '8px 16px', background: tab === t ? COLORS.purple : 'transparent', border: 'none', borderRadius: 12, color: tab === t ? COLORS.white : `${COLORS.white}cc`, fontFamily: "'Poppins', sans-serif", fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: 1, minHeight: 40 }}>{t}</button>))}</nav>
+          {/* Tabs hint tooltip - Round 1 only */}
+          {round === 1 && !hasSeenTabsHint && !showTutorial && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                marginTop: 8,
+                background: COLORS.greyDark,
+                border: `1px solid ${COLORS.purple}50`,
+                borderRadius: 10,
+                padding: '12px 16px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                zIndex: 100,
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <span style={{ fontSize: '0.8rem', color: `${COLORS.white}cc` }}>
+                More detail lives in these tabs — explore anytime.
+              </span>
+              <button
+                onClick={() => setHasSeenTabsHint(true)}
+                style={{
+                  padding: '6px 14px',
+                  background: COLORS.purple,
+                  border: 'none',
+                  borderRadius: 15,
+                  color: COLORS.white,
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: "'Poppins', sans-serif",
+                }}
+              >
+                Got it
+              </button>
+              {/* Arrow pointing up */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -6,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 0,
+                  height: 0,
+                  borderLeft: '6px solid transparent',
+                  borderRight: '6px solid transparent',
+                  borderBottom: `6px solid ${COLORS.greyDark}`,
+                }}
+              />
+            </div>
+          )}
+        </div>
 
         <div className="header-actions hide-mobile">
           <button onClick={reset} aria-label="Reset simulation" className="reset-btn" style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${COLORS.white}50`, color: `${COLORS.white}cc`, borderRadius: 10, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: '0.75rem', minHeight: 40 }}>Reset</button>
@@ -2119,6 +2203,9 @@ export default function App() {
               {event && !done ? (() => {
                 const totalCost = calculateInvestmentCost(inv);
                 const canAfford = totalCost <= budget.current;
+                const totalTime = TIME_INVESTMENTS.reduce((sum, x) => sum + inv[x.id], 0);
+                const timeValid = totalTime <= 100;
+                const canConfirm = canAfford && timeValid;
 
                 return (
                   <article ref={eventRef} aria-labelledby="event-title" className="event-panel" style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, display: 'flex', flexDirection: 'column', border: `1px solid ${COLORS.purple}30` }}>
@@ -2149,27 +2236,29 @@ export default function App() {
                   </fieldset>
                   <button
                     onClick={decide}
-                    disabled={selectedOption === null || !canAfford}
-                    aria-disabled={selectedOption === null || !canAfford}
+                    disabled={selectedOption === null || !canConfirm}
+                    aria-disabled={selectedOption === null || !canConfirm}
                     className="confirm-btn"
                     style={{
-                      background: selectedOption !== null && canAfford ? COLORS.purple : `${COLORS.white}20`,
+                      background: selectedOption !== null && canConfirm ? COLORS.purple : `${COLORS.white}20`,
                       border: 'none',
                       borderRadius: 25,
-                      color: selectedOption !== null && canAfford ? COLORS.white : `${COLORS.white}70`,
+                      color: selectedOption !== null && canConfirm ? COLORS.white : `${COLORS.white}70`,
                       fontFamily: "'Poppins', sans-serif",
                       fontWeight: 600,
-                      cursor: selectedOption !== null && canAfford ? 'pointer' : 'not-allowed',
+                      cursor: selectedOption !== null && canConfirm ? 'pointer' : 'not-allowed',
                       textTransform: 'uppercase',
                       transition: 'background 0.2s ease-out',
-                      opacity: selectedOption !== null && canAfford ? 1 : 0.7
+                      opacity: selectedOption !== null && canConfirm ? 1 : 0.7
                     }}
                   >
                     {selectedOption === null
                       ? 'Select an option above'
                       : !canAfford
                         ? 'Reduce investments - over budget'
-                        : 'Confirm Decision'}
+                        : !timeValid
+                          ? 'Reduce time - over 100%'
+                          : 'Confirm Decision'}
                   </button>
                   <div aria-label={`Progress: ${handled} of ${events.length + handled} events completed`} style={{ marginTop: 12, display: 'flex', justifyContent: 'center', gap: 5 }}>{[...Array(events.length + handled)].map((_, i) => (<div key={`progress-${i}`} aria-hidden="true" style={{ width: i < handled ? 22 : 7, height: 3, borderRadius: 2, background: i < handled ? COLORS.teal : i === handled ? COLORS.purple : `${COLORS.white}20` }} />))}</div>
                 </article>
