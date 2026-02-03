@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, AreaChart, Area } from 'recharts';
 
 const COLORS = {
@@ -30,6 +30,16 @@ const TIME_INVESTMENTS = [
   { id: 'coaching', label: 'Coaching', icon: '🎓', effects: { performance: 0.06, engagement: 0.06, credibility: 0.06 }, loadEffect: 0.2 },
   { id: 'strategy', label: 'Strategy', icon: '📊', effects: { performance: 0.08, credibility: 0.08 }, loadEffect: 0.08 },
   { id: 'selfCare', label: 'Your Wellbeing', icon: '🧘', effects: { credibility: 0.04 }, loadEffect: -0.5 },
+];
+
+const TUTORIAL_STEPS = [
+  { id: 'metrics', title: 'Metrics', description: 'These six measures show how your team is doing. Green is healthy, yellow is warning, red is trouble.', position: 'right' },
+  { id: 'load', title: 'Your Load', description: 'Your personal stress level. Push too hard for too long and it affects your effectiveness.', position: 'right' },
+  { id: 'investments', title: 'Investments', description: 'Allocate your budget and time each quarter. These choices shape how events play out.', position: 'right' },
+  { id: 'event', title: 'Event Panel', description: 'Situations will land on your desk. Read the context, then choose how to respond.', position: 'left' },
+  { id: 'options', title: 'Options', description: 'Click an option to select it. You can change your mind before confirming.', position: 'top' },
+  { id: 'observations', title: 'Observations', description: 'Ambient signals from your team. Not instructions — just things you might notice.', position: 'left' },
+  { id: 'team', title: 'Team Panel', description: 'Five individuals with their own personalities and limits. Their trust and engagement shift based on your decisions.', position: 'left' },
 ];
 
 const NOTIFICATIONS = {
@@ -1011,6 +1021,271 @@ export default function App() {
   const [departingChar, setDepartingChar] = useState(null);  // Departing character
   const [teamCapacity, setTeamCapacity] = useState(5);  // Active member count
 
+  // Tutorial state
+  const [showTutorialPrompt, setShowTutorialPrompt] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+
+  // Tutorial target refs
+  const metricsRef = useRef(null);
+  const loadRef = useRef(null);
+  const investmentsRef = useRef(null);
+  const eventRef = useRef(null);
+  const optionsRef = useRef(null);
+  const observationsRef = useRef(null);
+  const teamRef = useRef(null);
+
+  // Tutorial helper functions
+  const getTargetRef = (stepId) => {
+    const refMap = {
+      metrics: metricsRef,
+      load: loadRef,
+      investments: investmentsRef,
+      event: eventRef,
+      options: optionsRef,
+      observations: observationsRef,
+      team: teamRef,
+    };
+    return refMap[stepId];
+  };
+
+  const nextTutorialStep = () => {
+    if (tutorialStep < TUTORIAL_STEPS.length - 1) {
+      setTutorialStep(tutorialStep + 1);
+    } else {
+      setShowTutorial(false);
+      setTutorialStep(0);
+    }
+  };
+
+  const skipTutorial = () => {
+    setShowTutorial(false);
+    setTutorialStep(0);
+  };
+
+  // Tutorial Overlay Component
+  const TutorialOverlay = () => {
+    const currentStep = TUTORIAL_STEPS[tutorialStep];
+    const targetRef = getTargetRef(currentStep.id);
+    const [tooltipStyle, setTooltipStyle] = useState({});
+    const [spotlightStyle, setSpotlightStyle] = useState({});
+    const [arrowStyle, setArrowStyle] = useState({});
+
+    useEffect(() => {
+      if (!targetRef?.current) return;
+
+      const updatePosition = () => {
+        const rect = targetRef.current.getBoundingClientRect();
+        const gap = 15;
+        const tooltipWidth = 280;
+        const tooltipHeight = 180;
+        const padding = 8;
+        const arrowSize = 10;
+
+        // Spotlight position
+        setSpotlightStyle({
+          top: rect.top - padding,
+          left: rect.left - padding,
+          width: rect.width + padding * 2,
+          height: rect.height + padding * 2,
+        });
+
+        // Calculate tooltip position based on specified direction
+        let top, left;
+        const position = currentStep.position;
+
+        if (position === 'right') {
+          top = rect.top + rect.height / 2 - tooltipHeight / 2;
+          left = rect.right + gap;
+        } else if (position === 'left') {
+          top = rect.top + rect.height / 2 - tooltipHeight / 2;
+          left = rect.left - tooltipWidth - gap;
+        } else if (position === 'top') {
+          top = rect.top - tooltipHeight - gap;
+          left = rect.left + rect.width / 2 - tooltipWidth / 2;
+        } else if (position === 'bottom') {
+          top = rect.bottom + gap;
+          left = rect.left + rect.width / 2 - tooltipWidth / 2;
+        }
+
+        // Viewport clamping
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        if (left < gap) left = gap;
+        if (left + tooltipWidth > viewportWidth - gap) {
+          left = viewportWidth - tooltipWidth - gap;
+        }
+        if (top < gap) top = gap;
+        if (top + tooltipHeight > viewportHeight - gap) {
+          top = viewportHeight - tooltipHeight - gap;
+        }
+
+        setTooltipStyle({ top, left, width: tooltipWidth });
+
+        // Arrow positioning
+        let arrowTop, arrowLeft, arrowBorder;
+        if (position === 'right') {
+          arrowTop = top + tooltipHeight / 2 - arrowSize;
+          arrowLeft = left - arrowSize;
+          arrowBorder = `transparent ${COLORS.greyDark} transparent transparent`;
+        } else if (position === 'left') {
+          arrowTop = top + tooltipHeight / 2 - arrowSize;
+          arrowLeft = left + tooltipWidth;
+          arrowBorder = `transparent transparent transparent ${COLORS.greyDark}`;
+        } else if (position === 'top') {
+          arrowTop = top + tooltipHeight;
+          arrowLeft = left + tooltipWidth / 2 - arrowSize;
+          arrowBorder = `${COLORS.greyDark} transparent transparent transparent`;
+        } else if (position === 'bottom') {
+          arrowTop = top - arrowSize * 2;
+          arrowLeft = left + tooltipWidth / 2 - arrowSize;
+          arrowBorder = `transparent transparent ${COLORS.greyDark} transparent`;
+        }
+        setArrowStyle({ top: arrowTop, left: arrowLeft, border: arrowBorder, size: arrowSize });
+      };
+
+      updatePosition();
+      window.addEventListener('resize', updatePosition);
+      return () => window.removeEventListener('resize', updatePosition);
+    }, [targetRef, currentStep, tutorialStep]);
+
+    if (!targetRef?.current) return null;
+
+    const isLastStep = tutorialStep === TUTORIAL_STEPS.length - 1;
+
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, pointerEvents: 'none', overflow: 'hidden' }}>
+        {/* Dark overlay with spotlight cutout */}
+        <div
+          style={{
+            position: 'absolute',
+            top: spotlightStyle.top,
+            left: spotlightStyle.left,
+            width: spotlightStyle.width,
+            height: spotlightStyle.height,
+            borderRadius: 12,
+            boxShadow: `0 0 0 9999px rgba(0, 0, 0, 0.75), 0 0 15px 5px rgba(187, 41, 187, 0.3), inset 0 0 1px 1px rgba(255, 255, 255, 0.1)`,
+            transition: 'top 200ms ease-out, left 200ms ease-out, width 200ms ease-out, height 200ms ease-out',
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* Arrow pointer */}
+        <div
+          style={{
+            position: 'absolute',
+            top: arrowStyle.top,
+            left: arrowStyle.left,
+            width: 0,
+            height: 0,
+            borderStyle: 'solid',
+            borderWidth: arrowStyle.size,
+            borderColor: arrowStyle.border,
+            transition: 'top 200ms ease-out, left 200ms ease-out',
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* Tooltip */}
+        <div
+          style={{
+            position: 'absolute',
+            top: tooltipStyle.top,
+            left: tooltipStyle.left,
+            width: tooltipStyle.width,
+            background: COLORS.greyDark,
+            border: `1px solid ${COLORS.purple}50`,
+            borderRadius: 12,
+            padding: '20px 24px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+            transition: 'top 200ms ease-out, left 200ms ease-out, opacity 200ms ease-out',
+            pointerEvents: 'auto',
+          }}
+        >
+          {/* Step indicator */}
+          <div
+            style={{
+              fontSize: '0.7rem',
+              color: `${COLORS.white}60`,
+              marginBottom: 8,
+              textTransform: 'uppercase',
+              letterSpacing: 1,
+            }}
+          >
+            {tutorialStep + 1} of {TUTORIAL_STEPS.length}
+          </div>
+
+          {/* Title */}
+          <h3
+            style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: COLORS.white,
+              margin: '0 0 8px 0',
+            }}
+          >
+            {currentStep.title}
+          </h3>
+
+          {/* Description */}
+          <p
+            style={{
+              fontSize: '0.85rem',
+              color: `${COLORS.white}cc`,
+              lineHeight: 1.5,
+              margin: '0 0 20px 0',
+            }}
+          >
+            {currentStep.description}
+          </p>
+
+          {/* Buttons */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button
+              onClick={skipTutorial}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: `1px solid ${COLORS.white}30`,
+                borderRadius: 20,
+                color: `${COLORS.white}80`,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                fontFamily: "'Poppins', sans-serif",
+                transition: 'border-color 200ms ease-out, color 200ms ease-out',
+              }}
+              onMouseOver={e => { e.target.style.borderColor = `${COLORS.white}60`; e.target.style.color = COLORS.white; }}
+              onMouseOut={e => { e.target.style.borderColor = `${COLORS.white}30`; e.target.style.color = `${COLORS.white}80`; }}
+            >
+              Skip tour
+            </button>
+            <button
+              onClick={nextTutorialStep}
+              style={{
+                padding: '8px 20px',
+                background: `linear-gradient(135deg, ${COLORS.purple} 0%, ${COLORS.blue} 100%)`,
+                border: 'none',
+                borderRadius: 20,
+                color: COLORS.white,
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: "'Poppins', sans-serif",
+                transition: 'transform 200ms ease-out, box-shadow 200ms ease-out',
+                boxShadow: `0 4px 15px ${COLORS.purple}40`,
+              }}
+              onMouseOver={e => { e.target.style.transform = 'translateY(-1px)'; e.target.style.boxShadow = `0 6px 20px ${COLORS.purple}60`; }}
+              onMouseOut={e => { e.target.style.transform = 'translateY(0)'; e.target.style.boxShadow = `0 4px 15px ${COLORS.purple}40`; }}
+            >
+              {isLastStep ? 'Got it!' : 'Next'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const genNotes = (currentChars, currentMetrics, currentInv, currentBudget) => {
     const n = [];
 
@@ -1179,7 +1454,11 @@ export default function App() {
     return "I've decided it's time to move on. This just isn't the right fit anymore.";
   };
 
-  const start = () => {
+  const handleBeginClick = () => {
+    setShowTutorialPrompt(true);
+  };
+
+  const startGame = (withTutorial = false) => {
     // Request fullscreen mode
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(err => {
@@ -1187,6 +1466,9 @@ export default function App() {
       });
     }
 
+    setShowTutorialPrompt(false);
+    setShowTutorial(withTutorial);
+    setTutorialStep(0);
     setPhase('playing');
     setRound(1);
     setMetrics(INITIAL_METRICS);
@@ -1202,6 +1484,8 @@ export default function App() {
     setEvents(e);
     setEvent(e[0] || null);
   };
+
+  const start = () => startGame(false);
 
   const decide = () => {
     if (!event || selectedOption === null) return;
@@ -1302,6 +1586,9 @@ export default function App() {
     setBudget({ current: 5000, lastAllocation: 0, totalReceived: 5000 });
     setDepartingChar(null);
     setTeamCapacity(5);
+    setShowTutorialPrompt(false);
+    setShowTutorial(false);
+    setTutorialStep(0);
   };
 
   const profile = () => {
@@ -1334,9 +1621,94 @@ export default function App() {
               <div key={x.label} role="listitem" style={{ textAlign: 'center' }}><div aria-hidden="true" style={{ fontSize: '1.75rem' }}>{x.icon}</div><div style={{ fontSize: 'clamp(1.5rem, 5vw, 2rem)', fontWeight: 700, color: COLORS.yellow }}>{x.value}</div><div style={{ fontSize: '0.8rem', color: `${COLORS.white}cc`, textTransform: 'uppercase', letterSpacing: 1 }}>{x.label}</div></div>
             ))}
           </div>
-          <button onClick={start} aria-label="Begin the simulation" className="intro-cta" style={{ fontWeight: 600, fontFamily: "'Poppins', sans-serif", background: COLORS.purple, color: COLORS.white, border: 'none', borderRadius: 50, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: 2, boxShadow: `0 10px 40px ${COLORS.purple}40`, minHeight: 56 }}>Begin Simulation</button>
+          <button onClick={handleBeginClick} aria-label="Begin the simulation" className="intro-cta" style={{ fontWeight: 600, fontFamily: "'Poppins', sans-serif", background: COLORS.purple, color: COLORS.white, border: 'none', borderRadius: 50, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: 2, boxShadow: `0 10px 40px ${COLORS.purple}40`, minHeight: 56 }}>Begin Simulation</button>
           <p style={{ marginTop: 24, fontSize: '0.8rem', color: `${COLORS.white}99` }}>Demo Version • Single Player • 4 Quarters</p>
         </div>
+
+        {/* Tutorial Welcome Modal */}
+        {showTutorialPrompt && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tutorial-modal-title"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+            }}
+          >
+            <div
+              style={{
+                background: COLORS.greyDark,
+                border: `1px solid ${COLORS.purple}50`,
+                borderRadius: 16,
+                padding: '32px 40px',
+                maxWidth: 400,
+                width: '90%',
+                textAlign: 'center',
+              }}
+            >
+              <h2
+                id="tutorial-modal-title"
+                style={{
+                  fontSize: '1.5rem',
+                  fontWeight: 600,
+                  color: COLORS.white,
+                  margin: '0 0 12px 0',
+                }}
+              >
+                Welcome
+              </h2>
+              <p
+                style={{
+                  fontSize: '0.95rem',
+                  color: `${COLORS.white}cc`,
+                  lineHeight: 1.6,
+                  margin: '0 0 28px 0',
+                }}
+              >
+                Would you like a quick tour of the interface?
+              </p>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                <button
+                  onClick={() => startGame(false)}
+                  style={{
+                    padding: '12px 24px',
+                    background: 'transparent',
+                    border: `1px solid ${COLORS.white}30`,
+                    borderRadius: 25,
+                    color: `${COLORS.white}80`,
+                    fontFamily: "'Poppins', sans-serif",
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Skip
+                </button>
+                <button
+                  onClick={() => startGame(true)}
+                  style={{
+                    padding: '12px 24px',
+                    background: `linear-gradient(135deg, ${COLORS.purple} 0%, ${COLORS.blue} 100%)`,
+                    border: 'none',
+                    borderRadius: 25,
+                    color: COLORS.white,
+                    fontFamily: "'Poppins', sans-serif",
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Show me around
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1722,7 +2094,7 @@ export default function App() {
 
             {/* Desktop sidebar with metrics and investments - hidden on mobile */}
             <aside className="hide-mobile" style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
-              <section aria-labelledby="metrics-heading" aria-live="polite" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10`, flexShrink: 0 }}>
+              <section ref={metricsRef} aria-labelledby="metrics-heading" aria-live="polite" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10`, flexShrink: 0 }}>
                 <h2 id="metrics-heading" style={{ fontSize: '0.75rem', color: COLORS.purple, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10, fontWeight: 600 }}>Metrics</h2>
                 {[{ k: 'trust', l: 'Trust', i: '🤝' }, { k: 'engagement', l: 'Engagement', i: '⚡' }, { k: 'performance', l: 'Performance', i: '📈' }, { k: 'fairness', l: 'Fairness', i: '⚖️' }, { k: 'credibility', l: 'Credibility', i: '🎯' }].map(x => (
                   <div key={x.k} style={{ marginBottom: 8 }}>
@@ -1730,12 +2102,12 @@ export default function App() {
                     <div role="progressbar" aria-valuenow={Math.round(metrics[x.k])} aria-valuemin="0" aria-valuemax="100" aria-label={`${x.l}: ${Math.round(metrics[x.k])} percent`} style={{ height: 4, background: `${COLORS.white}10`, borderRadius: 2 }}><div style={{ width: `${metrics[x.k]}%`, height: '100%', background: getMetricColor(metrics[x.k]), borderRadius: 2 }} /></div>
                   </div>
                 ))}
-                <div style={{ marginTop: 8, padding: 10, background: metrics.emotionalLoad > 60 ? `${COLORS.yellow}15` : `${COLORS.black}30`, borderRadius: 8 }}>
+                <div ref={loadRef} style={{ marginTop: 8, padding: 10, background: metrics.emotionalLoad > 60 ? `${COLORS.yellow}15` : `${COLORS.black}30`, borderRadius: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}><span style={{ color: `${COLORS.white}cc`, fontSize: '0.8rem' }}><span aria-hidden="true">🧠</span> Your Load</span><span style={{ color: metrics.emotionalLoad > 60 ? COLORS.yellow : COLORS.teal, fontWeight: 600, fontSize: '0.95rem' }}>{Math.round(metrics.emotionalLoad)}%</span></div>
                   <div role="progressbar" aria-valuenow={Math.round(metrics.emotionalLoad)} aria-valuemin="0" aria-valuemax="100" aria-label={`Your load: ${Math.round(metrics.emotionalLoad)} percent`} style={{ height: 4, background: `${COLORS.white}10`, borderRadius: 2 }}><div style={{ width: `${metrics.emotionalLoad}%`, height: '100%', background: metrics.emotionalLoad > 60 ? COLORS.yellow : COLORS.teal, borderRadius: 2 }} /></div>
                 </div>
               </section>
-              <section className="investments-section" aria-labelledby="investments-heading" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10`, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <section ref={investmentsRef} className="investments-section" aria-labelledby="investments-heading" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10`, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                 <h2 id="investments-heading" style={{ fontSize: '0.75rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10, fontWeight: 600 }}>Investments</h2>
                 <div style={{ overflowY: 'auto', flex: 1 }}>
                   {renderInvestments()}
@@ -1749,7 +2121,7 @@ export default function App() {
                 const canAfford = totalCost <= budget.current;
 
                 return (
-                  <article aria-labelledby="event-title" className="event-panel" style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, display: 'flex', flexDirection: 'column', border: `1px solid ${COLORS.purple}30` }}>
+                  <article ref={eventRef} aria-labelledby="event-title" className="event-panel" style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, display: 'flex', flexDirection: 'column', border: `1px solid ${COLORS.purple}30` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                     <span style={{ background: `${COLORS.purple}30`, padding: '4px 10px', borderRadius: 12, fontSize: '0.65rem', color: COLORS.purple, fontWeight: 600, textTransform: 'uppercase' }}>{event.category}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: `${COLORS.white}99`, fontSize: '0.75rem' }}><span aria-hidden="true">{getDeliveryIcon(event.delivery)}</span><span style={{ textTransform: 'capitalize' }}>via {event.delivery.replace('_', ' ')}</span></span>
@@ -1761,7 +2133,7 @@ export default function App() {
                     <legend style={{ fontSize: '0.85rem', color: COLORS.purple, marginBottom: 8, fontWeight: 600, animation: selectedOption === null ? 'pulseText 2s ease-in-out infinite' : 'none' }}>
                       Choose your response:
                     </legend>
-                    <div role="radiogroup" aria-label="Decision options" className="options-grid">{event.options.map((o, i) => (
+                    <div ref={optionsRef} role="radiogroup" aria-label="Decision options" className="options-grid">{event.options.map((o, i) => (
                       <button
                         key={`option-${event.id}-${i}`}
                         onClick={() => setSelectedOption(i)}
@@ -1810,7 +2182,7 @@ export default function App() {
                   <button onClick={endRound} aria-label={round >= 4 ? 'View your final results' : `Start quarter ${round + 1}`} style={{ padding: '14px 35px', background: COLORS.teal, border: 'none', borderRadius: 22, color: COLORS.white, fontFamily: "'Poppins', sans-serif", fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: 2, minHeight: 52 }}>{round >= 4 ? 'View Results' : `Start Q${round + 1}`}</button>
                 </section>
               ) : null}
-              <section aria-labelledby="observations-heading" aria-live="polite" className="observations-panel" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 16, border: `1px solid ${COLORS.white}10`, display: 'flex', flexDirection: 'column' }}>
+              <section ref={observationsRef} aria-labelledby="observations-heading" aria-live="polite" className="observations-panel" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 16, border: `1px solid ${COLORS.white}10`, display: 'flex', flexDirection: 'column' }}>
                 <h2 id="observations-heading" style={{ fontSize: '0.75rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12, fontWeight: 600 }}>Observations</h2>
                 <div role="log" aria-label="Team observations" style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
                   {notes.length ? notes.map((n, i) => (
@@ -1823,7 +2195,7 @@ export default function App() {
               </section>
             </div>
             {/* Team sidebar - horizontal scroll on mobile, vertical on desktop */}
-            <aside aria-labelledby="team-sidebar-heading" className="hide-mobile" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10`, overflow: 'auto' }}>
+            <aside ref={teamRef} aria-labelledby="team-sidebar-heading" className="hide-mobile" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10`, overflow: 'auto' }}>
               <h2 id="team-sidebar-heading" style={{ fontSize: '0.75rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10, fontWeight: 600 }}>Your Team</h2>
               <div role="list" aria-label="Team members" className="team-sidebar">
               {chars.map(c => (
@@ -1953,6 +2325,9 @@ export default function App() {
           Reset
         </button>
       </nav>
+
+      {/* Tutorial Overlay */}
+      {showTutorial && phase === 'playing' && tab === 'dashboard' && <TutorialOverlay />}
     </div>
   );
 }
