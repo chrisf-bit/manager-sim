@@ -1532,34 +1532,6 @@ export default function App() {
   // Only regenerate notes when a new event is shown (handled changes) or round starts
   useEffect(() => { if (phase === 'playing') setNotes(genNotes(chars, metrics, inv, budget)); }, [phase, handled]);
 
-  // Staggered observation animations with sound
-  useEffect(() => {
-    // Clear any existing animation timeouts
-    if (observationAnimationRef.current) {
-      observationAnimationRef.current.forEach(timeout => clearTimeout(timeout));
-    }
-    observationAnimationRef.current = [];
-
-    // Reset animated observations
-    setAnimatedObservations([]);
-
-    if (notes.length === 0) return;
-
-    // Animate each observation one by one
-    const timeouts = notes.map((_, index) => {
-      return setTimeout(() => {
-        setAnimatedObservations(prev => [...prev, index]);
-        playSound('select');
-      }, 400 + (index * 300)); // 400ms initial delay, 300ms between each
-    });
-
-    observationAnimationRef.current = timeouts;
-
-    return () => {
-      timeouts.forEach(timeout => clearTimeout(timeout));
-    };
-  }, [notes, playSound]);
-
   const pickEvents = useCallback(() => {
     const num = round === 1 ? 2 : round === 4 ? 4 : 3;
     const used = decisions.map(d => d.eventId);
