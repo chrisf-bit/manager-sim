@@ -17,6 +17,9 @@
       ::-webkit-scrollbar-track { background: #0f0f1a; border-radius: 3px; }
       ::-webkit-scrollbar-thumb { background: #BB29BB60; border-radius: 3px; }
       ::-webkit-scrollbar-thumb:hover { background: #BB29BB; }
+      @media (max-width: 767px) {
+        html, body, #root { overflow: auto; -webkit-overflow-scrolling: touch; }
+      }
     </style>
   </head>
   <body>
