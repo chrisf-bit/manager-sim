@@ -257,6 +257,15 @@ const styles = `
     .metric-notification { animation: notificationSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
     .metric-notification.positive { animation: notificationSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both, positiveGlow 2s ease-in-out infinite; }
     .metric-notification.negative { animation: notificationSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both, negativeGlow 2s ease-in-out infinite; }
+
+    /* Observation slide-in animation (staggered from top) */
+    @keyframes slideInObservation {
+      0% { transform: translateY(-20px); opacity: 0; }
+      60% { transform: translateY(3px); }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    .observation-item { opacity: 0; }
+    .observation-item.animate { animation: slideInObservation 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
   }
 
   /* Focus styles for accessibility */
@@ -1052,6 +1061,10 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const audioContextRef = useRef(null);
 
+  // Observation animation state
+  const [animatedObservations, setAnimatedObservations] = useState([]);
+  const observationAnimationRef = useRef(null);
+
   // Tutorial target refs
   const metricsRef = useRef(null);
   const loadRef = useRef(null);
@@ -1220,6 +1233,42 @@ export default function App() {
       }
     }
   }, [soundEnabled, initAudioContext]);
+
+  // Animate observations one by one when notes change
+  useEffect(() => {
+    // Clear any existing animation timeout
+    if (observationAnimationRef.current) {
+      clearTimeout(observationAnimationRef.current);
+    }
+
+    if (notes.length === 0) {
+      setAnimatedObservations([]);
+      return;
+    }
+
+    // Reset animated observations when notes change
+    setAnimatedObservations([]);
+
+    // Stagger the animations with 300ms delay between each
+    notes.forEach((_, index) => {
+      const timeoutId = setTimeout(() => {
+        setAnimatedObservations(prev => [...prev, index]);
+        // Play a subtle sound for each observation
+        playSound('select');
+      }, 400 + index * 300); // Start after 400ms, then 300ms between each
+
+      // Store the last timeout for cleanup
+      if (index === notes.length - 1) {
+        observationAnimationRef.current = timeoutId;
+      }
+    });
+
+    return () => {
+      if (observationAnimationRef.current) {
+        clearTimeout(observationAnimationRef.current);
+      }
+    };
+  }, [notes, playSound]);
 
   // Tutorial Overlay Component
   const TutorialOverlay = () => {
@@ -1793,6 +1842,7 @@ export default function App() {
     setShowTutorial(false);
     setTutorialStep(0);
     setHasSeenTabsHint(false);
+    setAnimatedObservations([]);
   };
 
   const profile = () => {
@@ -2544,7 +2594,19 @@ export default function App() {
                 <h2 id="observations-heading" style={{ fontSize: '0.75rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12, fontWeight: 600 }}>Observations</h2>
                 <div role="log" aria-label="Team observations" style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
                   {notes.length ? notes.map((n, i) => (
-                    <div key={`note-${i}-${n.text.slice(0,10)}`} className="animate-fade" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', background: `${COLORS.black}40`, borderRadius: 8, borderLeft: `3px solid ${COLORS.purple}40` }}>
+                    <div
+                      key={`note-${i}-${n.text.slice(0,10)}`}
+                      className={`observation-item ${animatedObservations.includes(i) ? 'animate' : ''}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        padding: '10px 12px',
+                        background: `${COLORS.black}40`,
+                        borderRadius: 8,
+                        borderLeft: `3px solid ${COLORS.purple}40`,
+                      }}
+                    >
                       <span aria-hidden="true" style={{ fontSize: '1.2rem' }}>{n.icon}</span>
                       <span style={{ color: `${COLORS.white}cc`, fontSize: '0.9rem', lineHeight: 1.5 }}>{n.text}</span>
                     </div>
