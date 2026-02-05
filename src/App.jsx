@@ -373,11 +373,14 @@ const styles = `
     gap: 12px;
     padding: 12px;
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   @media (min-width: 768px) {
     .dashboard-grid {
       grid-template-columns: 1fr 1fr;
       overflow: hidden;
+      touch-action: auto;
     }
   }
   @media (min-width: 1024px) {
@@ -393,6 +396,8 @@ const styles = `
     gap: 20px;
     padding: 20px;
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   @media (min-width: 768px) {
     .results-grid {
@@ -400,6 +405,7 @@ const styles = `
       gap: 30px;
       padding: 30px 40px;
       overflow: hidden;
+      touch-action: auto;
     }
   }
 
@@ -410,12 +416,15 @@ const styles = `
     gap: 15px;
     padding: 15px;
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   @media (min-width: 768px) {
     .insights-grid {
       grid-template-columns: 1fr 1fr;
       grid-template-rows: 1fr 1fr;
       overflow: hidden;
+      touch-action: auto;
     }
   }
 
@@ -426,6 +435,8 @@ const styles = `
     gap: 15px;
     padding: 15px;
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   @media (min-width: 640px) {
     .team-grid {
@@ -907,6 +918,8 @@ const styles = `
   @media (max-width: 767px) {
     .game-content {
       padding-bottom: 70px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
   }
 
