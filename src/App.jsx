@@ -235,8 +235,28 @@ const styles = `
     @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulseText { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     @keyframes countUp { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+    @keyframes notificationSlideIn {
+      0% { opacity: 0; transform: translateX(100px) scale(0.8); }
+      70% { transform: translateX(-5px) scale(1.02); }
+      100% { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    @keyframes notificationFadeOut {
+      0% { opacity: 1; transform: translateX(0); }
+      100% { opacity: 0; transform: translateX(50px); }
+    }
+    @keyframes positiveGlow {
+      0%, 100% { box-shadow: 0 4px 20px rgba(45, 213, 196, 0.2); }
+      50% { box-shadow: 0 4px 30px rgba(45, 213, 196, 0.4); }
+    }
+    @keyframes negativeGlow {
+      0%, 100% { box-shadow: 0 4px 20px rgba(255, 71, 87, 0.2); }
+      50% { box-shadow: 0 4px 30px rgba(255, 71, 87, 0.4); }
+    }
     .animate-pulse { animation: pulse 4s ease-in-out infinite; }
     .animate-fade { animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+    .metric-notification { animation: notificationSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    .metric-notification.positive { animation: notificationSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both, positiveGlow 2s ease-in-out infinite; }
+    .metric-notification.negative { animation: notificationSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both, negativeGlow 2s ease-in-out infinite; }
   }
 
   /* Focus styles for accessibility */
@@ -1027,6 +1047,11 @@ export default function App() {
   const [tutorialStep, setTutorialStep] = useState(0);
   const [hasSeenTabsHint, setHasSeenTabsHint] = useState(false);
 
+  // Notification and sound state
+  const [notifications, setNotifications] = useState([]);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const audioContextRef = useRef(null);
+
   // Tutorial target refs
   const metricsRef = useRef(null);
   const loadRef = useRef(null);
@@ -1063,6 +1088,138 @@ export default function App() {
     setShowTutorial(false);
     setTutorialStep(0);
   };
+
+  // Sound system using Web Audio API
+  const initAudioContext = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioContextRef.current;
+  }, []);
+
+  const playSound = useCallback((type) => {
+    if (!soundEnabled) return;
+
+    const ctx = initAudioContext();
+    if (!ctx || ctx.state === 'suspended') {
+      ctx?.resume();
+      return;
+    }
+
+    const now = ctx.currentTime;
+
+    switch (type) {
+      case 'positive': {
+        // Ascending two-note chime (major third)
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc1.type = 'sine';
+        osc2.type = 'sine';
+        osc1.frequency.value = 523.25; // C5
+        osc2.frequency.value = 659.25; // E5
+
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.15, now + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc1.start(now);
+        osc2.start(now + 0.08);
+        osc1.stop(now + 0.4);
+        osc2.stop(now + 0.5);
+        break;
+      }
+
+      case 'negative': {
+        // Descending minor second (tension)
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc1.type = 'triangle';
+        osc2.type = 'triangle';
+        osc1.frequency.value = 392; // G4
+        osc2.frequency.value = 349.23; // F4
+
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.12, now + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc1.start(now);
+        osc2.start(now + 0.1);
+        osc1.stop(now + 0.35);
+        osc2.stop(now + 0.45);
+        break;
+      }
+
+      case 'select': {
+        // Soft click/tap
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.value = 880; // A5
+
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.08);
+        break;
+      }
+
+      case 'confirm': {
+        // Decisive confirmation tone
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.linearRampToValueAtTime(880, now + 0.1);
+
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.2);
+        break;
+      }
+
+      case 'slider': {
+        // Subtle tick for slider movement
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.value = 1200;
+
+        gain.gain.setValueAtTime(0.03, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.03);
+        break;
+      }
+    }
+  }, [soundEnabled, initAudioContext]);
 
   // Tutorial Overlay Component
   const TutorialOverlay = () => {
@@ -1244,7 +1401,7 @@ export default function App() {
           {/* Buttons */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <button
-              onClick={skipTutorial}
+              onClick={() => { playSound('select'); skipTutorial(); }}
               style={{
                 padding: '8px 16px',
                 background: 'transparent',
@@ -1262,7 +1419,7 @@ export default function App() {
               Skip tour
             </button>
             <button
-              onClick={nextTutorialStep}
+              onClick={() => { playSound('select'); nextTutorialStep(); }}
               style={{
                 padding: '8px 20px',
                 background: `linear-gradient(135deg, ${COLORS.purple} 0%, ${COLORS.blue} 100%)`,
@@ -1494,6 +1651,10 @@ export default function App() {
 
   const decide = () => {
     if (!event || selectedOption === null) return;
+
+    // Store previous metrics for delta calculation
+    const prevMetrics = { ...metrics };
+
     const opt = event.options[selectedOption];
     const mod = getInvestmentModifier(event, inv);
     const m = { ...metrics };
@@ -1516,6 +1677,43 @@ export default function App() {
         setChars(nc);
       }
     }
+
+    // Calculate metric deltas and create notifications
+    const METRIC_LABELS = {
+      trust: 'Trust', engagement: 'Engagement', performance: 'Performance',
+      retention: 'Retention', fairness: 'Fairness', credibility: 'Credibility',
+      emotionalLoad: 'Your Load'
+    };
+
+    const newNotifications = [];
+    Object.keys(prevMetrics).forEach(key => {
+      const delta = Math.round(m[key]) - Math.round(prevMetrics[key]);
+      if (delta !== 0) {
+        newNotifications.push({
+          id: `${Date.now()}-${key}-${Math.random()}`,
+          metric: key,
+          label: METRIC_LABELS[key],
+          delta,
+          isPositive: key === 'emotionalLoad' ? delta < 0 : delta > 0,
+          timestamp: Date.now()
+        });
+      }
+    });
+
+    // Play sound and show notifications
+    if (newNotifications.length > 0) {
+      const hasPositive = newNotifications.some(n => n.isPositive);
+      playSound(hasPositive ? 'positive' : 'negative');
+      setNotifications(prev => [...prev, ...newNotifications]);
+
+      // Auto-remove after 3.5 seconds
+      setTimeout(() => {
+        setNotifications(prev =>
+          prev.filter(n => !newNotifications.find(nn => nn.id === n.id))
+        );
+      }, 3500);
+    }
+
     setDecisions([...decisions, { round, eventId: event.id, eventTitle: event.title, choice: opt.text }]);
     setMetrics(m);
     setSelectedOption(null);
@@ -1680,7 +1878,7 @@ export default function App() {
               </p>
               <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                 <button
-                  onClick={() => startGame(false)}
+                  onClick={() => { playSound('select'); startGame(false); }}
                   style={{
                     padding: '12px 24px',
                     background: 'transparent',
@@ -1695,7 +1893,7 @@ export default function App() {
                   Skip
                 </button>
                 <button
-                  onClick={() => startGame(true)}
+                  onClick={() => { playSound('confirm'); startGame(true); }}
                   style={{
                     padding: '12px 24px',
                     background: `linear-gradient(135deg, ${COLORS.purple} 0%, ${COLORS.blue} 100%)`,
@@ -2018,7 +2216,7 @@ export default function App() {
                 max="100"
                 step="10"
                 value={inv[x.id]}
-                onChange={e => setInv({ ...inv, [x.id]: +e.target.value })}
+                onChange={e => { playSound('slider'); setInv({ ...inv, [x.id]: +e.target.value }); }}
                 disabled={disabled}
                 aria-label={`${x.label} investment: ${inv[x.id]} percent, costs £${cost}`}
               />
@@ -2045,7 +2243,7 @@ export default function App() {
             {TIME_INVESTMENTS.map(x => (
               <div key={x.id} style={{ marginBottom: 12 }}>
                 <label htmlFor={`slider-${x.id}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: `${COLORS.white}cc`, fontSize: '0.75rem' }}><span aria-hidden="true">{x.icon}</span> {x.label}</span><span style={{ color: inv[x.id] ? COLORS.blue : `${COLORS.white}99`, fontWeight: 600, fontSize: '0.85rem' }}>{inv[x.id]}%</span></label>
-                <input id={`slider-${x.id}`} type="range" min="0" max="100" step="10" value={inv[x.id]} onChange={e => setInv({ ...inv, [x.id]: +e.target.value })} aria-label={`${x.label} investment: ${inv[x.id]} percent`} />
+                <input id={`slider-${x.id}`} type="range" min="0" max="100" step="10" value={inv[x.id]} onChange={e => { playSound('slider'); setInv({ ...inv, [x.id]: +e.target.value }); }} aria-label={`${x.label} investment: ${inv[x.id]} percent`} />
                 <div style={{ fontSize: '0.65rem', color: `${COLORS.white}60`, marginTop: 2, lineHeight: 1.3 }}>{x.helpText}</div>
               </div>
             ))}
@@ -2061,6 +2259,57 @@ export default function App() {
       <style>{styles}</style>
       <a href="#game-content" className="skip-link">Skip to game content</a>
 
+      {/* Metric Change Notifications */}
+      <div
+        aria-live="polite"
+        aria-label="Metric changes"
+        style={{
+          position: 'fixed',
+          top: 80,
+          right: 20,
+          zIndex: 1000,
+          pointerEvents: 'none',
+          maxWidth: 220
+        }}
+      >
+        {notifications.map((n, i) => {
+          const bgColor = n.isPositive
+            ? `linear-gradient(135deg, ${COLORS.greyDark} 0%, rgba(45, 213, 196, 0.25) 100%)`
+            : `linear-gradient(135deg, ${COLORS.greyDark} 0%, rgba(255, 71, 87, 0.25) 100%)`;
+          const borderColor = n.isPositive ? COLORS.teal : '#ff4757';
+          const textColor = n.isPositive ? COLORS.teal : '#ff4757';
+          const displayDelta = n.delta > 0 ? `+${n.delta}` : n.delta;
+
+          return (
+            <div
+              key={n.id}
+              className={`metric-notification ${n.isPositive ? 'positive' : 'negative'}`}
+              style={{
+                background: bgColor,
+                borderLeft: `3px solid ${borderColor}`,
+                borderRadius: 8,
+                padding: '12px 16px',
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 16,
+                minWidth: 180,
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
+                animationDelay: `${i * 50}ms`
+              }}
+            >
+              <span style={{ color: `${COLORS.white}cc`, fontSize: '0.85rem', fontWeight: 500 }}>
+                {n.label}
+              </span>
+              <span style={{ color: textColor, fontSize: '1.1rem', fontWeight: 700, fontFamily: "'Poppins', sans-serif" }}>
+                {displayDelta}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
       {/* Responsive Header */}
       <header className="game-header" style={{ background: `linear-gradient(90deg, ${COLORS.greyDark} 0%, ${COLORS.grey} 100%)`, borderBottom: `1px solid ${COLORS.white}10` }}>
         <div className="header-brand">
@@ -2069,6 +2318,23 @@ export default function App() {
           <div aria-label={`Budget: £${budget.current.toLocaleString()}`} style={{ background: `${COLORS.teal}30`, padding: '4px 12px', borderRadius: 15, fontSize: '0.75rem', color: COLORS.teal, fontWeight: 600 }}>
             💰 £{budget.current.toLocaleString()}
           </div>
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            aria-label={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+            title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+            style={{
+              background: `${COLORS.white}10`,
+              border: 'none',
+              borderRadius: 15,
+              padding: '4px 12px',
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              color: COLORS.white,
+              opacity: soundEnabled ? 1 : 0.5
+            }}
+          >
+            {soundEnabled ? '🔊' : '🔇'}
+          </button>
         </div>
 
         {/* Desktop navigation - hidden on mobile */}
@@ -2134,7 +2400,7 @@ export default function App() {
 
         <div className="header-actions hide-mobile" style={{ display: 'flex', gap: 8 }}>
           <button
-            onClick={() => { setShowTutorial(true); setTutorialStep(0); setTab('dashboard'); }}
+            onClick={() => { playSound('confirm'); setShowTutorial(true); setTutorialStep(0); setTab('dashboard'); }}
             aria-label="Show tutorial"
             title="Show tutorial"
             style={{ padding: '8px 12px', background: 'transparent', border: `1px solid ${COLORS.purple}50`, color: COLORS.purple, borderRadius: 10, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: '0.9rem', fontWeight: 600, minHeight: 40 }}
@@ -2226,7 +2492,7 @@ export default function App() {
                     <div ref={optionsRef} role="radiogroup" aria-label="Decision options" className="options-grid">{event.options.map((o, i) => (
                       <button
                         key={`option-${event.id}-${i}`}
-                        onClick={() => setSelectedOption(i)}
+                        onClick={() => { playSound('select'); setSelectedOption(i); }}
                         aria-pressed={selectedOption === i}
                         className="option-btn"
                         onFocus={e => { if (selectedOption !== i) { e.target.style.borderColor = COLORS.purple + '80'; e.target.style.background = `${COLORS.purple}20`; }}}
@@ -2238,7 +2504,7 @@ export default function App() {
                     ))}</div>
                   </fieldset>
                   <button
-                    onClick={decide}
+                    onClick={() => { playSound('confirm'); decide(); }}
                     disabled={selectedOption === null || !canConfirm}
                     aria-disabled={selectedOption === null || !canConfirm}
                     className="confirm-btn"
@@ -2409,7 +2675,7 @@ export default function App() {
           </button>
         ))}
         <button
-          onClick={() => { setShowTutorial(true); setTutorialStep(0); setTab('dashboard'); }}
+          onClick={() => { playSound('confirm'); setShowTutorial(true); setTutorialStep(0); setTab('dashboard'); }}
           className="mobile-nav-btn"
           aria-label="Show tutorial"
         >
