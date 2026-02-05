@@ -33,13 +33,13 @@ const TIME_INVESTMENTS = [
 ];
 
 const TUTORIAL_STEPS = [
-  { id: 'metrics', title: 'Metrics', description: 'These six measures show how your team is doing. Green is healthy, yellow is warning, red is trouble.', position: 'right' },
-  { id: 'load', title: 'Your Load', description: 'Your personal stress level. Push too hard for too long and it affects your effectiveness.', position: 'right' },
-  { id: 'investments', title: 'Investments', description: 'Allocate your budget and time each quarter. These choices shape how events play out.', position: 'right' },
-  { id: 'event', title: 'Event Panel', description: 'Situations will land on your desk. Read the context, then choose how to respond.', position: 'left' },
-  { id: 'options', title: 'Options', description: 'Click an option to select it. You can change your mind before confirming.', position: 'top' },
-  { id: 'observations', title: 'Observations', description: 'Ambient signals from your team. Not instructions — just things you might notice.', position: 'left' },
-  { id: 'team', title: 'Team Panel', description: 'Five individuals with their own personalities and limits. Their trust and engagement shift based on your decisions.', position: 'left' },
+  { id: 'metrics', title: 'Metrics', icon: '📊', description: 'These six measures show how your team is doing. Green is healthy, yellow is warning, red is trouble.', position: 'right' },
+  { id: 'load', title: 'Your Load', icon: '🔋', description: 'Your personal stress level. Push too hard for too long and it affects your effectiveness.', position: 'right' },
+  { id: 'investments', title: 'Investments', icon: '💰', description: 'Allocate your budget and time each quarter. These choices shape how events play out.', position: 'right' },
+  { id: 'event', title: 'Event Panel', icon: '📋', description: 'Situations will land on your desk. Read the context, then choose how to respond.', position: 'left' },
+  { id: 'options', title: 'Options', icon: '🎯', description: 'Click an option to select it. You can change your mind before confirming.', position: 'top' },
+  { id: 'observations', title: 'Observations', icon: '👀', description: 'Ambient signals from your team. Not instructions — just things you might notice.', position: 'left' },
+  { id: 'team', title: 'Team Panel', icon: '👥', description: 'Five individuals with their own personalities and limits. Their trust and engagement shift based on your decisions.', position: 'left' },
 ];
 
 const NOTIFICATIONS = {
@@ -1068,6 +1068,7 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [hasSeenTabsHint, setHasSeenTabsHint] = useState(false);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
 
   // Notification and sound state
   const [notifications, setNotifications] = useState([]);
@@ -1506,6 +1507,85 @@ export default function App() {
     );
   };
 
+  // Mobile Tutorial Overlay - Full-screen cards instead of positioned tooltips
+  const MobileTutorialOverlay = () => {
+    const currentStep = TUTORIAL_STEPS[tutorialStep];
+    const isLastStep = tutorialStep === TUTORIAL_STEPS.length - 1;
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.95)',
+          zIndex: 10000,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          fontFamily: "'Poppins', sans-serif"
+        }}
+      >
+        {/* Step indicator */}
+        <div style={{ color: COLORS.purple, fontSize: '0.8rem', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 2 }}>
+          {tutorialStep + 1} of {TUTORIAL_STEPS.length}
+        </div>
+
+        {/* Icon */}
+        <div style={{ fontSize: '4rem', marginBottom: 24 }}>
+          {currentStep.icon}
+        </div>
+
+        {/* Title */}
+        <h2 style={{ color: COLORS.white, fontSize: '1.5rem', fontWeight: 600, marginBottom: 16, textAlign: 'center' }}>
+          {currentStep.title}
+        </h2>
+
+        {/* Description */}
+        <p style={{ color: `${COLORS.white}cc`, fontSize: '1rem', textAlign: 'center', maxWidth: 320, lineHeight: 1.6, margin: 0 }}>
+          {currentStep.description}
+        </p>
+
+        {/* Buttons */}
+        <div style={{ display: 'flex', gap: 16, marginTop: 40 }}>
+          <button
+            onClick={() => { playSound('select'); skipTutorial(); }}
+            style={{
+              padding: '12px 24px',
+              background: 'transparent',
+              border: `1px solid ${COLORS.white}30`,
+              borderRadius: 25,
+              color: `${COLORS.white}80`,
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: '0.9rem',
+              cursor: 'pointer'
+            }}
+          >
+            Skip
+          </button>
+          <button
+            onClick={() => { playSound('select'); nextTutorialStep(); }}
+            style={{
+              padding: '12px 28px',
+              background: `linear-gradient(135deg, ${COLORS.purple} 0%, ${COLORS.blue} 100%)`,
+              border: 'none',
+              borderRadius: 25,
+              color: COLORS.white,
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: `0 4px 15px ${COLORS.purple}40`
+            }}
+          >
+            {isLastStep ? 'Got it!' : 'Next'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const genNotes = (currentChars, currentMetrics, currentInv, currentBudget) => {
     const n = [];
 
@@ -1544,6 +1624,13 @@ export default function App() {
 
   // Only regenerate notes when a new event is shown (handled changes) or round starts
   useEffect(() => { if (phase === 'playing') setNotes(genNotes(chars, metrics, inv, budget)); }, [phase, handled]);
+
+  // Track mobile viewport for tutorial
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const pickEvents = useCallback(() => {
     const num = round === 1 ? 2 : round === 4 ? 4 : 3;
@@ -2769,7 +2856,9 @@ export default function App() {
       </nav>
 
       {/* Tutorial Overlay */}
-      {showTutorial && phase === 'playing' && tab === 'dashboard' && <TutorialOverlay />}
+      {showTutorial && phase === 'playing' && tab === 'dashboard' && (
+        isMobile ? <MobileTutorialOverlay /> : <TutorialOverlay />
+      )}
     </div>
   );
 }
