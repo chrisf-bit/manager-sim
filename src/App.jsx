@@ -26,7 +26,7 @@ const INVESTMENT_COSTS = {
 };
 
 const TIME_INVESTMENTS = [
-  { id: 'oneOnOnes', label: '1:1s', icon: '💬', effects: { trust: 0.1, credibility: 0.08, fairness: 0.04 }, loadEffect: 0.15, helpText: 'Regular individual meetings. Affects trust, credibility, and fairness. Adds to your load.' },
+  { id: 'oneOnOnes', label: '1:1s', icon: '💬', effects: { trust: 0.1, credibility: 0.08, fairness: 0.04 }, loadEffect: 0.15, helpText: 'Regular individual meetings. Choose who to meet — selected people get a trust and engagement boost. Higher investment unlocks more slots.' },
   { id: 'coaching', label: 'Coaching', icon: '🎓', effects: { performance: 0.06, engagement: 0.06, credibility: 0.06 }, loadEffect: 0.2, helpText: 'Hands-on skill development. Affects performance, engagement, and credibility. High time cost.' },
   { id: 'strategy', label: 'Strategy', icon: '📊', effects: { performance: 0.08, credibility: 0.08 }, loadEffect: 0.08, helpText: 'Planning and direction-setting. Affects performance and credibility. Moderate time cost.' },
   { id: 'selfCare', label: 'Your Wellbeing', icon: '🧘', effects: { credibility: 0.04 }, loadEffect: -0.5, helpText: 'Time for your own wellbeing. Reduces your personal load significantly.' },
@@ -205,6 +205,131 @@ const calculateInvestmentCost = (investments) => {
     const units = value / 10;
     return total + (costPer10 * units);
   }, 0);
+};
+
+const FACILITATION_PROMPTS = {
+  plan: [
+    { round: 1, prompt: "This is your first quarter. What do you notice about your team's starting position? Where are the risks and opportunities?" },
+    { round: 2, prompt: "Reflect on Q1. What patterns emerged? Which relationships need attention heading into this quarter?" },
+    { round: 3, prompt: "You're past the halfway mark. What's your strategy for the remaining quarters? Are you reacting or leading?" },
+    { round: 4, prompt: "Final quarter. What legacy are you building? What would you do differently if you started over?" },
+  ],
+  reflect: [
+    { round: 1, prompt: "How did your first set of decisions feel? Were you surprised by any of the consequences?" },
+    { round: 2, prompt: "Are you noticing any trade-offs between metrics? What tensions are emerging in your approach?" },
+    { round: 3, prompt: "Think about the team members individually. Who needs your attention most, and why?" },
+    { round: 4, prompt: "Looking at the full journey, what would you tell a new manager about what you've learned?" },
+  ],
+};
+
+const generatePlanInsights = (chars, metrics, budget, round, history) => {
+  const insights = [];
+  const active = chars.filter(c => !c.departed);
+
+  const avgEngagement = active.reduce((s, c) => s + c.engagement, 0) / Math.max(1, active.length);
+  if (avgEngagement < 50) {
+    insights.push({ icon: '📉', text: `Team engagement is low (avg ${Math.round(avgEngagement)}). Consider investing in team building or recognition.` });
+  } else if (avgEngagement > 75) {
+    insights.push({ icon: '✅', text: `Team engagement is healthy (avg ${Math.round(avgEngagement)}). Maintain momentum.` });
+  } else {
+    insights.push({ icon: '📊', text: `Team engagement is moderate (avg ${Math.round(avgEngagement)}). Room for improvement.` });
+  }
+
+  const overloaded = active.filter(c => c.loadPercent > 120);
+  if (overloaded.length > 0) {
+    insights.push({ icon: '🔥', text: `${overloaded.length} team member${overloaded.length > 1 ? 's are' : ' is'} overloaded. Burnout risk is real.` });
+  }
+
+  const burnoutRisk = active.filter(c => c.loadPercent > 140);
+  if (burnoutRisk.length > 0) {
+    insights.push({ icon: '🚨', text: `${burnoutRisk.map(c => c.name).join(', ')} at critical burnout levels.` });
+  }
+
+  if (budget.current === 0) {
+    insights.push({ icon: '🚫', text: 'No budget remaining. You can only make time investments this quarter.' });
+  } else if (budget.current < 1000) {
+    insights.push({ icon: '💰', text: `Budget tight at £${budget.current.toLocaleString()}. Prioritise carefully.` });
+  } else {
+    insights.push({ icon: '💰', text: `£${budget.current.toLocaleString()} available this quarter.` });
+  }
+
+  const atRiskChars = active.filter(c => c.atRisk);
+  if (atRiskChars.length > 0) {
+    insights.push({ icon: '⚠️', text: `${atRiskChars.map(c => c.name).join(', ')} flagged as at risk of leaving.` });
+  }
+
+  if (metrics.trust < 50) {
+    insights.push({ icon: '🤝', text: `Trust is critically low (${Math.round(metrics.trust)}). Prioritise transparency and follow-through.` });
+  }
+
+  if (metrics.emotionalLoad > 70) {
+    insights.push({ icon: '🧠', text: `Your personal load is high (${Math.round(metrics.emotionalLoad)}%). Consider self-care investments.` });
+  }
+
+  const departed = chars.filter(c => c.departed).length;
+  if (departed > 0) {
+    insights.push({ icon: '🪑', text: `${departed} team member${departed > 1 ? 's have' : ' has'} departed. Remaining team is absorbing extra work.` });
+  }
+
+  if (history.length > 1 && round > 1) {
+    const prev = history[history.length - 1];
+    const trustDelta = metrics.trust - prev.trust;
+    const perfDelta = metrics.performance - prev.performance;
+    if (trustDelta < -10) {
+      insights.push({ icon: '📉', text: `Trust dropped ${Math.abs(Math.round(trustDelta))} points last quarter.` });
+    }
+    if (perfDelta < -10) {
+      insights.push({ icon: '📉', text: `Performance fell ${Math.abs(Math.round(perfDelta))} points last quarter.` });
+    }
+  }
+
+  return insights.slice(0, 5);
+};
+
+const generateReflectionPrompts = (chars, metrics, history, decisions, round) => {
+  const prompts = [];
+  const roundDecisions = decisions.filter(d => d.round === round);
+
+  const departures = chars.filter(c => c.departed);
+  if (departures.length > 0) {
+    prompts.push({ icon: '🚪', text: `${departures.map(c => c.name).join(', ')} left the team. What could have been done differently to retain them?` });
+  }
+
+  if (history.length >= 2) {
+    const prevLoad = history[history.length - 2]?.emotionalLoad || 30;
+    const loadDelta = metrics.emotionalLoad - prevLoad;
+    if (loadDelta > 15) {
+      prompts.push({ icon: '🧠', text: 'Your personal load increased significantly this quarter. Is that sustainable?' });
+    } else if (loadDelta < -10) {
+      prompts.push({ icon: '🧘', text: 'You managed to reduce your load this quarter. What choices made that possible?' });
+    }
+  }
+
+  if (history.length >= 2) {
+    const prevPerf = history[history.length - 2]?.performance || 70;
+    if (metrics.performance > prevPerf + 5) {
+      prompts.push({ icon: '📈', text: 'Performance improved this quarter. Which decisions contributed most to that?' });
+    } else if (metrics.performance < prevPerf - 5) {
+      prompts.push({ icon: '📉', text: 'Performance declined. Was that a deliberate trade-off, or an unintended consequence?' });
+    }
+  }
+
+  if (metrics.fairness < 50) {
+    prompts.push({ icon: '⚖️', text: 'Fairness perception is low. Are your decisions consistent, or do some people get preferential treatment?' });
+  }
+
+  if (metrics.trust > 75 && metrics.performance < 60) {
+    prompts.push({ icon: '🤔', text: "Your team trusts you, but performance is lagging. Are you avoiding difficult conversations?" });
+  }
+  if (metrics.performance > 80 && metrics.trust < 50) {
+    prompts.push({ icon: '🤔', text: "Results are strong but trust is fragile. Is this approach sustainable long-term?" });
+  }
+
+  prompts.push({ icon: '📋', text: `You made ${roundDecisions.length} decision${roundDecisions.length !== 1 ? 's' : ''} this quarter. Looking back, would you change any of them?` });
+
+  prompts.push({ icon: '💡', text: "How did your investment choices (budget and time) support or undermine your event decisions?" });
+
+  return prompts.slice(0, 4);
 };
 
 const styles = `
@@ -1040,6 +1165,367 @@ const styles = `
       margin-top: 16px;
     }
   }
+
+  /* ============================================
+     QUARTER GUIDE PANEL
+     ============================================ */
+
+  .guided-panel {
+    width: 300px;
+    min-width: 300px;
+    background: linear-gradient(180deg, #1e1230 0%, #120a1e 100%);
+    border: 1px solid rgba(187, 41, 187, 0.35);
+    border-radius: 14px;
+    margin: 8px 0 8px 8px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    position: relative;
+    flex-shrink: 0;
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .guided-panel.collapsed {
+    width: 48px;
+    min-width: 48px;
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .guided-panel-toggle {
+    position: absolute;
+    right: -14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #1a1a2e;
+    border: 1px solid rgba(187, 41, 187, 0.4);
+    color: #BB29BB;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    font-size: 0.85rem;
+    font-family: 'Poppins', sans-serif;
+    padding: 0;
+    line-height: 1;
+  }
+  .guided-panel-toggle:hover {
+    background: rgba(187, 41, 187, 0.2);
+    border-color: #BB29BB;
+  }
+
+  .guided-phase-progress {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .guided-phase-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    font-family: 'Poppins', sans-serif;
+    color: rgba(255, 255, 255, 0.35);
+    white-space: nowrap;
+  }
+
+  .guided-phase-step.active {
+    color: #BB29BB;
+    font-weight: 600;
+  }
+
+  .guided-phase-step.completed {
+    color: #2CD5C4;
+  }
+
+  .guided-phase-connector {
+    flex: 1;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 0 8px;
+    min-width: 12px;
+  }
+
+  .guided-phase-connector.completed {
+    background: #2CD5C4;
+  }
+
+  .guided-phase-content {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .guided-insight {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border-left: 3px solid rgba(187, 41, 187, 0.3);
+  }
+
+  .guided-insight-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .guided-insight-text {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.5;
+  }
+
+  .guided-checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    margin-bottom: 6px;
+  }
+
+  .guided-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    color: transparent;
+  }
+
+  .guided-check.done {
+    background: rgba(45, 213, 196, 0.2);
+    border-color: #2CD5C4;
+    color: #2CD5C4;
+  }
+
+  .guided-check-label {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .guided-check-label.done {
+    color: #2CD5C4;
+  }
+
+  .guided-facilitation {
+    background: rgba(187, 41, 187, 0.08);
+    border: 1px solid rgba(187, 41, 187, 0.2);
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 16px;
+  }
+
+  .guided-facilitation-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #BB29BB;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .guided-facilitation-text {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.6;
+    font-style: italic;
+    margin: 0;
+  }
+
+  /* Plan phase: glowing panel to draw attention */
+  .guided-panel.plan-active {
+    border-color: rgba(187, 41, 187, 0.5);
+    box-shadow: 0 0 24px rgba(187, 41, 187, 0.15);
+  }
+
+  @keyframes guidedPanelGlow {
+    0%, 100% { box-shadow: 0 0 24px rgba(187, 41, 187, 0.15); }
+    50% { box-shadow: 0 0 40px rgba(187, 41, 187, 0.3); }
+  }
+
+  .guided-panel.plan-active {
+    animation: guidedPanelGlow 3s ease-in-out infinite;
+  }
+
+  .guided-start-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, rgba(187, 41, 187, 0.2) 0%, rgba(187, 41, 187, 0.08) 100%);
+    border-bottom: 1px solid rgba(187, 41, 187, 0.3);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #BB29BB;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  @keyframes guidedArrowBounce {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(-6px); }
+  }
+
+  .guided-arrow-hint {
+    animation: guidedArrowBounce 1.5s ease-in-out infinite;
+    display: inline-block;
+  }
+
+  @keyframes guidedFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ============================================
+     METRIC CHANGES OVERLAY
+     ============================================ */
+
+  .metric-overlay-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: metricOverlayFadeIn 0.3s ease-out;
+  }
+
+  @keyframes metricOverlayFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .metric-overlay-panel {
+    background: linear-gradient(180deg, #1e1230 0%, #120a1e 100%);
+    border: 1px solid rgba(187, 41, 187, 0.4);
+    border-radius: 20px;
+    padding: 32px;
+    min-width: 340px;
+    max-width: 420px;
+    width: 90vw;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 40px rgba(187, 41, 187, 0.15);
+    animation: metricOverlaySlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes metricOverlaySlideUp {
+    from { opacity: 0; transform: translateY(30px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes metricItemSlideIn {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .metric-overlay-item {
+    opacity: 0;
+    animation: metricItemSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .guided-phase-content > * {
+    animation: guidedFadeIn 0.3s ease-out both;
+  }
+
+  .guided-collapsed-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 16px;
+    gap: 8px;
+    height: 100%;
+  }
+
+  .guided-collapsed-icon {
+    font-size: 1.3rem;
+  }
+
+  .guided-collapsed-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #BB29BB;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  /* Tablet: default to collapsed */
+  @media (max-width: 1199px) and (min-width: 768px) {
+    .guided-panel:not(.force-open) {
+      width: 48px;
+      min-width: 48px;
+    }
+  }
+
+  /* Mobile: horizontal banner */
+  @media (max-width: 767px) {
+    .guided-panel {
+      width: calc(100% - 16px) !important;
+      min-width: calc(100% - 16px) !important;
+      border: 1px solid rgba(187, 41, 187, 0.35);
+      border-radius: 14px;
+      margin: 8px;
+      overflow: visible;
+      flex-shrink: 0;
+    }
+
+    .guided-panel.collapsed {
+      width: 100% !important;
+      min-width: 100% !important;
+      height: auto;
+    }
+
+    .guided-collapsed-content {
+      flex-direction: row;
+      padding: 10px 16px;
+      gap: 10px;
+      height: auto;
+    }
+
+    .guided-collapsed-label {
+      writing-mode: horizontal-tb;
+      text-orientation: initial;
+    }
+
+    .guided-panel-toggle {
+      position: static;
+      transform: none;
+      margin-left: auto;
+    }
+
+    .guided-phase-progress {
+      padding: 10px 16px;
+    }
+
+    .guided-phase-content {
+      padding: 12px 16px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  }
 `;
 
 export default function App() {
@@ -1063,6 +1549,11 @@ export default function App() {
   const [departingChar, setDepartingChar] = useState(null);  // Departing character
   const [teamCapacity, setTeamCapacity] = useState(5);  // Active member count
 
+  // Quarter Guide panel state
+  const [guidedPhase, setGuidedPhase] = useState('plan'); // 'plan' | 'execute' | 'reflect'
+  const [guidedPanelOpen, setGuidedPanelOpen] = useState(typeof window !== 'undefined' && window.innerWidth >= 1200);
+  const [oneOnOneTargets, setOneOnOneTargets] = useState([]); // Character IDs selected for 1:1s
+
   // Tutorial state
   const [showTutorialPrompt, setShowTutorialPrompt] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -1070,8 +1561,12 @@ export default function App() {
   const [hasSeenTabsHint, setHasSeenTabsHint] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
 
+  const [investmentTab, setInvestmentTab] = useState('budget'); // 'budget' | 'time'
+
   // Notification and sound state
   const [notifications, setNotifications] = useState([]);
+  const [showMetricOverlay, setShowMetricOverlay] = useState(false);
+  const [roundStartMetrics, setRoundStartMetrics] = useState(INITIAL_METRICS);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const audioContextRef = useRef(null);
 
@@ -1625,6 +2120,40 @@ export default function App() {
   // Only regenerate notes when a new event is shown (handled changes) or round starts
   useEffect(() => { if (phase === 'playing') setNotes(genNotes(chars, metrics, inv, budget)); }, [phase, handled]);
 
+  // Auto-transition to reflect phase and show metric summary when all events handled
+  useEffect(() => {
+    if (done && guidedPhase === 'execute') {
+      setGuidedPhase('reflect');
+
+      // Calculate cumulative metric changes for the whole round
+      const METRIC_LABELS = {
+        trust: 'Trust', engagement: 'Engagement', performance: 'Performance',
+        retention: 'Retention', fairness: 'Fairness', credibility: 'Credibility',
+        emotionalLoad: 'Your Load'
+      };
+      const roundNotifications = [];
+      Object.keys(roundStartMetrics).forEach(key => {
+        const delta = Math.round(metrics[key]) - Math.round(roundStartMetrics[key]);
+        if (delta !== 0) {
+          roundNotifications.push({
+            id: `${Date.now()}-${key}`,
+            metric: key,
+            label: METRIC_LABELS[key],
+            delta,
+            isPositive: key === 'emotionalLoad' ? delta < 0 : delta > 0,
+          });
+        }
+      });
+
+      if (roundNotifications.length > 0) {
+        const hasPositive = roundNotifications.some(n => n.isPositive);
+        playSound(hasPositive ? 'positive' : 'negative');
+        setNotifications(roundNotifications);
+        setShowMetricOverlay(true);
+      }
+    }
+  }, [done, guidedPhase]);
+
   // Track mobile viewport for tutorial
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -1791,6 +2320,12 @@ export default function App() {
     setInv(INITIAL_INVESTMENTS);
     setSelectedOption(null);
     setBudget({ current: 5000, lastAllocation: 0, totalReceived: 5000 });
+    setGuidedPhase('plan');
+    setGuidedPanelOpen(window.innerWidth >= 1200);
+    setOneOnOneTargets([]);
+    setRoundStartMetrics(INITIAL_METRICS);
+    setNotifications([]);
+    setShowMetricOverlay(false);
     const e = pickEvents();
     setEvents(e);
     setEvent(e[0] || null);
@@ -1800,9 +2335,6 @@ export default function App() {
 
   const decide = () => {
     if (!event || selectedOption === null) return;
-
-    // Store previous metrics for delta calculation
-    const prevMetrics = { ...metrics };
 
     const opt = event.options[selectedOption];
     const mod = getInvestmentModifier(event, inv);
@@ -1827,41 +2359,11 @@ export default function App() {
       }
     }
 
-    // Calculate metric deltas and create notifications
-    const METRIC_LABELS = {
-      trust: 'Trust', engagement: 'Engagement', performance: 'Performance',
-      retention: 'Retention', fairness: 'Fairness', credibility: 'Credibility',
-      emotionalLoad: 'Your Load'
-    };
-
-    const newNotifications = [];
-    Object.keys(prevMetrics).forEach(key => {
-      const delta = Math.round(m[key]) - Math.round(prevMetrics[key]);
-      if (delta !== 0) {
-        newNotifications.push({
-          id: `${Date.now()}-${key}-${Math.random()}`,
-          metric: key,
-          label: METRIC_LABELS[key],
-          delta,
-          isPositive: key === 'emotionalLoad' ? delta < 0 : delta > 0,
-          timestamp: Date.now()
-        });
-      }
-    });
-
-    // Play sound and show notifications
-    if (newNotifications.length > 0) {
-      const hasPositive = newNotifications.some(n => n.isPositive);
-      playSound(hasPositive ? 'positive' : 'negative');
-      setNotifications(prev => [...prev, ...newNotifications]);
-
-      // Auto-remove after 3.5 seconds
-      setTimeout(() => {
-        setNotifications(prev =>
-          prev.filter(n => !newNotifications.find(nn => nn.id === n.id))
-        );
-      }, 3500);
-    }
+    // Play feedback sound based on this decision's impact
+    const hasPositiveEffect = Object.entries(opt.effects).some(([k, v]) =>
+      k === 'emotionalLoad' ? v < 0 : v > 0
+    );
+    playSound(hasPositiveEffect ? 'positive' : 'negative');
 
     setDecisions([...decisions, { round, eventId: event.id, eventTitle: event.title, choice: opt.text }]);
     setMetrics(m);
@@ -1944,6 +2446,12 @@ export default function App() {
     setTutorialStep(0);
     setHasSeenTabsHint(false);
     setAnimatedObservations([]);
+    setGuidedPhase('plan');
+    setGuidedPanelOpen(window.innerWidth >= 1200);
+    setOneOnOneTargets([]);
+    setRoundStartMetrics(INITIAL_METRICS);
+    setNotifications([]);
+    setShowMetricOverlay(false);
   };
 
   const profile = () => {
@@ -1967,6 +2475,7 @@ export default function App() {
         <div aria-hidden="true" className="animate-pulse hide-mobile" style={{ position: 'absolute', top: '10%', left: '5%', width: 300, height: 300, borderRadius: '50%', background: `radial-gradient(circle, ${COLORS.purple}20 0%, transparent 70%)` }} />
         <div aria-hidden="true" className="animate-pulse hide-mobile" style={{ position: 'absolute', bottom: '15%', right: '10%', width: 200, height: 200, borderRadius: '50%', background: `radial-gradient(circle, ${COLORS.teal}20 0%, transparent 70%)` }} />
         <div id="main-content" className="intro-content">
+          <img src="/jam-pan-logo.png" alt="Jam Pan - Leadership Development" className="intro-logo" onError={(e) => { e.target.style.display = 'none'; }} />
           <h1 className="intro-title" style={{ color: COLORS.white }}>Under <span style={{ color: COLORS.purple }}>Pressure</span></h1>
           <p className="intro-subtitle" style={{ color: COLORS.teal }}>The People Management Simulation</p>
           <p className="intro-description" style={{ color: `${COLORS.white}cc`, fontWeight: 300 }}>Lead a team through realistic challenges. Allocate your time and budget, then navigate difficult situations where your investments shape the outcomes.</p>
@@ -2154,6 +2663,11 @@ export default function App() {
               const e = pickEvents();
               setEvents(e);
               setEvent(e[0] || null);
+              setGuidedPhase('plan');
+              setOneOnOneTargets([]);
+              setRoundStartMetrics({ ...metrics });
+              setNotifications([]);
+              setShowMetricOverlay(false);
               setPhase('playing');
             }}
             style={{
@@ -2291,6 +2805,7 @@ export default function App() {
         <a href="#results-content" className="skip-link">Skip to results</a>
         <header style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${COLORS.white}10`, flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <img src="/jam-pan-logo.png" alt="Jam Pan" style={{ height: 28 }} onError={(e) => { e.target.style.display = 'none'; }} />
             <span className="brand-text" style={{ fontSize: '1.25rem', fontWeight: 700, color: COLORS.white }}>UNDER <span style={{ color: COLORS.purple }}>PRESSURE</span></span>
           </div>
           <button onClick={reset} aria-label="Start a new simulation" className="play-again-btn" style={{ padding: '10px 20px', background: 'transparent', border: `2px solid ${COLORS.purple}`, color: COLORS.purple, borderRadius: 25, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 1, minHeight: 44 }}>Play Again</button>
@@ -2336,55 +2851,83 @@ export default function App() {
     const totalCost = calculateInvestmentCost(inv);
     const canAfford = totalCost <= budget.current;
     const budgetRemaining = budget.current - totalCost;
+    const totalTime = TIME_INVESTMENTS.reduce((sum, x) => sum + inv[x.id], 0);
+    const isOverAllocated = totalTime > 100;
 
     return (
       <>
-        <div style={{ fontSize: '0.7rem', color: canAfford ? COLORS.teal : COLORS.yellow, marginBottom: 8, padding: '6px 8px', background: `${COLORS.black}40`, borderRadius: 6 }}>
-          {budget.current === 0 ? (
-            <><span aria-hidden="true">🚫</span> Budget: £0 - Time investments only</>
-          ) : (
-            <><span aria-hidden="true">💰</span> Budget: £{budgetRemaining.toLocaleString()} remaining</>
-          )}
+        {/* Tab switcher */}
+        <div style={{ display: 'flex', gap: 0, marginBottom: 10, background: `${COLORS.black}40`, borderRadius: 8, padding: 3 }}>
+          <button
+            onClick={() => setInvestmentTab('budget')}
+            style={{
+              flex: 1, padding: '6px 0', border: 'none', borderRadius: 6, cursor: 'pointer',
+              fontFamily: "'Poppins', sans-serif", fontSize: '0.7rem', fontWeight: 600,
+              background: investmentTab === 'budget' ? `${COLORS.teal}25` : 'transparent',
+              color: investmentTab === 'budget' ? COLORS.teal : `${COLORS.white}60`,
+              transition: 'all 0.15s ease-out',
+            }}
+          >
+            💰 Budget
+          </button>
+          <button
+            onClick={() => setInvestmentTab('time')}
+            style={{
+              flex: 1, padding: '6px 0', border: 'none', borderRadius: 6, cursor: 'pointer',
+              fontFamily: "'Poppins', sans-serif", fontSize: '0.7rem', fontWeight: 600,
+              background: investmentTab === 'time' ? `${COLORS.blue}25` : 'transparent',
+              color: investmentTab === 'time' ? COLORS.blue : `${COLORS.white}60`,
+              transition: 'all 0.15s ease-out',
+            }}
+          >
+            ⏱️ Time {inv.oneOnOnes > 0 && oneOnOneTargets.length === 0 ? '•' : ''}
+          </button>
         </div>
-        {BUDGET_INVESTMENTS.map(x => {
-          const cost = (inv[x.id] / 10) * INVESTMENT_COSTS[x.id];
-          const disabled = budget.current === 0;
 
-          return (
-            <div key={x.id} style={{ marginBottom: 12, opacity: disabled ? 0.5 : 1 }}>
-              <label htmlFor={`slider-${x.id}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                <span style={{ color: `${COLORS.white}cc`, fontSize: '0.75rem' }}>
-                  <span aria-hidden="true">{x.icon}</span> {x.label}
-                </span>
-                <span style={{ color: inv[x.id] ? COLORS.teal : `${COLORS.white}99`, fontWeight: 600, fontSize: '0.85rem' }}>
-                  {inv[x.id]}% <span style={{ fontSize: '0.7rem', color: `${COLORS.white}70` }}>(£{cost})</span>
-                </span>
-              </label>
-              <input
-                id={`slider-${x.id}`}
-                type="range"
-                min="0"
-                max="100"
-                step="10"
-                value={inv[x.id]}
-                onChange={e => { playSound('slider'); setInv({ ...inv, [x.id]: +e.target.value }); }}
-                disabled={disabled}
-                aria-label={`${x.label} investment: ${inv[x.id]} percent, costs £${cost}`}
-              />
-              <div style={{ fontSize: '0.65rem', color: `${COLORS.white}60`, marginTop: 2, lineHeight: 1.3 }}>{x.helpText}</div>
-            </div>
-          );
-        })}
-      {(() => {
-        const totalTime = TIME_INVESTMENTS.reduce((sum, x) => sum + inv[x.id], 0);
-        const timeRemaining = 100 - totalTime;
-        const isOverAllocated = totalTime > 100;
-        return (
+        {/* Budget tab */}
+        {investmentTab === 'budget' && (
           <>
-            <div style={{ fontSize: '0.7rem', color: `${COLORS.white}cc`, marginTop: 12, marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${COLORS.white}10`, fontWeight: 500 }}>TIME</div>
+            <div style={{ fontSize: '0.7rem', color: canAfford ? COLORS.teal : COLORS.yellow, marginBottom: 8, padding: '6px 8px', background: `${COLORS.black}40`, borderRadius: 6 }}>
+              {budget.current === 0 ? (
+                <><span aria-hidden="true">🚫</span> Budget: £0 - Time investments only</>
+              ) : (
+                <><span aria-hidden="true">💰</span> Budget: £{budgetRemaining.toLocaleString()} remaining</>
+              )}
+            </div>
+            {BUDGET_INVESTMENTS.map(x => {
+              const cost = (inv[x.id] / 10) * INVESTMENT_COSTS[x.id];
+              const disabled = budget.current === 0;
+              return (
+                <div key={x.id} style={{ marginBottom: 12, opacity: disabled ? 0.5 : 1 }}>
+                  <label htmlFor={`slider-${x.id}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span style={{ color: `${COLORS.white}cc`, fontSize: '0.75rem' }}>
+                      <span aria-hidden="true">{x.icon}</span> {x.label}
+                    </span>
+                    <span style={{ color: inv[x.id] ? COLORS.teal : `${COLORS.white}99`, fontWeight: 600, fontSize: '0.85rem' }}>
+                      {inv[x.id]}% <span style={{ fontSize: '0.7rem', color: `${COLORS.white}70` }}>(£{cost})</span>
+                    </span>
+                  </label>
+                  <input
+                    id={`slider-${x.id}`}
+                    type="range" min="0" max="100" step="10"
+                    value={inv[x.id]}
+                    onChange={e => { playSound('slider'); setInv({ ...inv, [x.id]: +e.target.value }); }}
+                    disabled={disabled}
+                    aria-label={`${x.label} investment: ${inv[x.id]} percent, costs £${cost}`}
+                  />
+                  <div style={{ fontSize: '0.65rem', color: `${COLORS.white}60`, marginTop: 2, lineHeight: 1.3 }}>{x.helpText}</div>
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {/* Time tab */}
+        {investmentTab === 'time' && (
+          <>
             <div style={{ fontSize: '0.7rem', color: isOverAllocated ? '#ff4757' : COLORS.blue, marginBottom: 8, padding: '6px 8px', background: `${COLORS.black}40`, borderRadius: 6 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span><span aria-hidden="true">⏱️</span> Time: {timeRemaining >= 0 ? `${timeRemaining}% remaining` : `${Math.abs(timeRemaining)}% over capacity`}</span>
+                <span><span aria-hidden="true">⏱️</span> Time: {100 - totalTime >= 0 ? `${100 - totalTime}% remaining` : `${Math.abs(100 - totalTime)}% over capacity`}</span>
                 <span style={{ fontWeight: 600 }}>{totalTime}% used</span>
               </div>
               <div style={{ height: 4, background: `${COLORS.white}15`, borderRadius: 2, overflow: 'hidden' }}>
@@ -2394,14 +2937,346 @@ export default function App() {
             {TIME_INVESTMENTS.map(x => (
               <div key={x.id} style={{ marginBottom: 12 }}>
                 <label htmlFor={`slider-${x.id}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span style={{ color: `${COLORS.white}cc`, fontSize: '0.75rem' }}><span aria-hidden="true">{x.icon}</span> {x.label}</span><span style={{ color: inv[x.id] ? COLORS.blue : `${COLORS.white}99`, fontWeight: 600, fontSize: '0.85rem' }}>{inv[x.id]}%</span></label>
-                <input id={`slider-${x.id}`} type="range" min="0" max="100" step="10" value={inv[x.id]} onChange={e => { playSound('slider'); setInv({ ...inv, [x.id]: +e.target.value }); }} aria-label={`${x.label} investment: ${inv[x.id]} percent`} />
+                <input id={`slider-${x.id}`} type="range" min="0" max="100" step="10" value={inv[x.id]} onChange={e => {
+                  const newVal = +e.target.value;
+                  playSound('slider');
+                  setInv({ ...inv, [x.id]: newVal });
+                  if (x.id === 'oneOnOnes') {
+                    if (newVal === 0) setOneOnOneTargets([]);
+                    else {
+                      const newMax = Math.min(Math.ceil(newVal / 25), chars.filter(c => !c.departed).length);
+                      if (oneOnOneTargets.length > newMax) setOneOnOneTargets(oneOnOneTargets.slice(0, newMax));
+                    }
+                  }
+                }} aria-label={`${x.label} investment: ${inv[x.id]} percent`} />
                 <div style={{ fontSize: '0.65rem', color: `${COLORS.white}60`, marginTop: 2, lineHeight: 1.3 }}>{x.helpText}</div>
+                {x.id === 'oneOnOnes' && inv.oneOnOnes > 0 && (() => {
+                  const availableChars = chars.filter(c => !c.departed);
+                  const maxSlots = Math.min(Math.ceil(inv.oneOnOnes / 25), availableChars.length);
+                  return (
+                    <div style={{ marginTop: 8, padding: 10, background: `${COLORS.purple}12`, borderRadius: 10, border: `1px solid ${COLORS.purple}25` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <span style={{ fontSize: '0.7rem', color: '#d580d5', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
+                          Who will you meet with?
+                        </span>
+                        <span style={{ fontSize: '0.65rem', color: `${COLORS.white}60` }}>
+                          {oneOnOneTargets.length}/{maxSlots} slots
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {availableChars.map(c => {
+                          const isSelected = oneOnOneTargets.includes(c.id);
+                          const canSelect = isSelected || oneOnOneTargets.length < maxSlots;
+                          return (
+                            <button
+                              key={c.id}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setOneOnOneTargets(oneOnOneTargets.filter(id => id !== c.id));
+                                } else if (canSelect) {
+                                  playSound('slider');
+                                  setOneOnOneTargets([...oneOnOneTargets, c.id]);
+                                }
+                              }}
+                              disabled={!canSelect && !isSelected}
+                              aria-label={`${isSelected ? 'Remove' : 'Select'} ${c.name} for 1:1`}
+                              aria-pressed={isSelected}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px',
+                                background: isSelected ? `${COLORS.purple}30` : `${COLORS.black}40`,
+                                border: `1px solid ${isSelected ? COLORS.purple : `${COLORS.white}15`}`,
+                                borderRadius: 20,
+                                color: isSelected ? COLORS.white : canSelect ? `${COLORS.white}99` : `${COLORS.white}30`,
+                                fontFamily: "'Poppins', sans-serif", fontSize: '0.7rem',
+                                fontWeight: isSelected ? 600 : 400,
+                                cursor: canSelect || isSelected ? 'pointer' : 'default',
+                                transition: 'all 0.15s ease-out',
+                              }}
+                            >
+                              <span aria-hidden="true" style={{ fontSize: '0.85rem' }}>{c.avatar}</span>
+                              <span>{c.name.split(' ')[0]}</span>
+                              {isSelected && <span aria-hidden="true" style={{ fontSize: '0.6rem', marginLeft: 2 }}>✓</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {oneOnOneTargets.length > 0 && (
+                        <div style={{ marginTop: 8, fontSize: '0.6rem', color: `${COLORS.white}50`, lineHeight: 1.4 }}>
+                          Selected team members will get a trust and engagement boost this quarter.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </>
-        );
-      })()}
+        )}
       </>
+    );
+  };
+
+  const renderGuidedPanel = () => {
+    if (phase !== 'playing' || tab !== 'dashboard') return null;
+
+    const phases = [
+      { key: 'plan', icon: '🧭', label: 'Plan' },
+      { key: 'execute', icon: '⚙️', label: 'Execute' },
+      { key: 'reflect', icon: '💡', label: 'Reflect' },
+    ];
+    const currentPhaseIndex = phases.findIndex(p => p.key === guidedPhase);
+    const currentPhaseData = phases.find(p => p.key === guidedPhase);
+
+    const handlePlanProceed = () => {
+      playSound('confirm');
+      // Apply 1:1 boosts to selected characters
+      if (inv.oneOnOnes > 0 && oneOnOneTargets.length > 0) {
+        const intensity = inv.oneOnOnes / 100;
+        const trustBoost = 3 + intensity * 4;   // 3-7 per person
+        const engagementBoost = 2 + intensity * 3; // 2-5 per person
+        const updatedChars = chars.map(c => {
+          if (oneOnOneTargets.includes(c.id) && !c.departed) {
+            return {
+              ...c,
+              trust: clamp(c.trust + trustBoost, 0, 100),
+              engagement: clamp(c.engagement + engagementBoost, 0, 100),
+            };
+          }
+          return c;
+        });
+        setChars(updatedChars);
+      }
+      setGuidedPhase('execute');
+    };
+
+    const hasSetInvestments = Object.values(inv).some(v => v > 0);
+    const totalEvents = events.length + handled;
+
+    if (!guidedPanelOpen) {
+      return (
+        <div
+          className="guided-panel collapsed"
+          onClick={() => setGuidedPanelOpen(true)}
+          role="complementary"
+          aria-label="Quarter Guide (collapsed)"
+        >
+          <div className="guided-collapsed-content">
+            <span className="guided-collapsed-icon" aria-hidden="true">{currentPhaseData.icon}</span>
+            <span className="guided-collapsed-label">{currentPhaseData.label}</span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <aside
+        className={`guided-panel force-open ${guidedPhase === 'plan' ? 'plan-active' : ''}`}
+        role="complementary"
+        aria-label="Quarter Guide"
+      >
+        <button
+          className="guided-panel-toggle hide-mobile"
+          onClick={() => setGuidedPanelOpen(false)}
+          aria-label="Collapse Quarter Guide"
+        >
+          ‹
+        </button>
+
+        <div style={{ fontSize: '0.85rem', color: '#d580d5', textTransform: 'uppercase', letterSpacing: 3, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>
+          Quarter Guide
+        </div>
+
+        {guidedPhase === 'plan' && (
+          <div className="guided-start-badge">
+            <span aria-hidden="true">▶</span>
+            <span>Start Here — Q{round}</span>
+          </div>
+        )}
+
+        <div className="guided-phase-progress">
+          {phases.map((p, i) => (
+            <span key={p.key} style={{ display: 'contents' }}>
+              <div className={`guided-phase-step ${guidedPhase === p.key ? 'active' : ''} ${i < currentPhaseIndex ? 'completed' : ''}`}>
+                <span aria-hidden="true">{p.icon}</span>
+                <span>{p.label}</span>
+              </div>
+              {i < phases.length - 1 && (
+                <div className={`guided-phase-connector ${i < currentPhaseIndex ? 'completed' : ''}`} />
+              )}
+            </span>
+          ))}
+        </div>
+
+        <div className="guided-phase-content" key={guidedPhase}>
+          {guidedPhase === 'plan' && (
+            <>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: COLORS.white, margin: '0 0 16px 0' }}>
+                Review the Situation
+              </h3>
+
+              {generatePlanInsights(chars, metrics, budget, round, history).map((insight, i) => (
+                <div key={i} className="guided-insight">
+                  <span className="guided-insight-icon" aria-hidden="true">{insight.icon}</span>
+                  <span className="guided-insight-text">{insight.text}</span>
+                </div>
+              ))}
+
+              <div className="guided-facilitation">
+                <div className="guided-facilitation-label">Discussion Prompt</div>
+                <p className="guided-facilitation-text">
+                  {FACILITATION_PROMPTS.plan.find(p => p.round === round)?.prompt ||
+                   FACILITATION_PROMPTS.plan[0].prompt}
+                </p>
+              </div>
+
+              <button
+                onClick={handlePlanProceed}
+                style={{
+                  width: '100%',
+                  marginTop: 20,
+                  padding: '12px 24px',
+                  background: COLORS.purple,
+                  border: 'none',
+                  borderRadius: 22,
+                  color: COLORS.white,
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                  minHeight: 48,
+                }}
+              >
+                Ready to Start Q{round}
+              </button>
+            </>
+          )}
+
+          {guidedPhase === 'execute' && (
+            <>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: COLORS.white, margin: '0 0 16px 0' }}>
+                Make Your Decisions
+              </h3>
+
+              <div className="guided-checklist-item">
+                <div className={`guided-check ${hasSetInvestments ? 'done' : ''}`}>
+                  {hasSetInvestments ? '✓' : ''}
+                </div>
+                <span className={`guided-check-label ${hasSetInvestments ? 'done' : ''}`}>
+                  Set investments
+                </span>
+              </div>
+              {inv.oneOnOnes > 0 && (
+                <div className="guided-checklist-item">
+                  <div className={`guided-check ${oneOnOneTargets.length > 0 ? 'done' : ''}`}>
+                    {oneOnOneTargets.length > 0 ? '✓' : ''}
+                  </div>
+                  <span className={`guided-check-label ${oneOnOneTargets.length > 0 ? 'done' : ''}`}>
+                    1:1s scheduled ({oneOnOneTargets.length} selected)
+                  </span>
+                </div>
+              )}
+              {Array.from({ length: totalEvents }, (_, i) => (
+                <div key={i} className="guided-checklist-item">
+                  <div className={`guided-check ${i < handled ? 'done' : ''}`}>
+                    {i < handled ? '✓' : ''}
+                  </div>
+                  <span className={`guided-check-label ${i < handled ? 'done' : ''}`}>
+                    {i < handled ? `Event ${i + 1} handled` : i === handled ? `Event ${i + 1} (current)` : `Event ${i + 1}`}
+                  </span>
+                </div>
+              ))}
+
+              <div style={{
+                marginTop: 16,
+                padding: 12,
+                background: `${COLORS.black}30`,
+                borderRadius: 8,
+                borderLeft: `3px solid ${COLORS.teal}30`,
+              }}>
+                <div style={{ fontSize: '0.65rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, fontWeight: 600 }}>
+                  Tip
+                </div>
+                <p style={{ fontSize: '0.8rem', color: `${COLORS.white}99`, lineHeight: 1.5, margin: 0 }}>
+                  {hasSetInvestments
+                    ? 'Your investments shape how events play out. Higher relevant investments soften negative outcomes.'
+                    : 'Set your budget and time investments before handling events. They affect your options\' effectiveness.'
+                  }
+                </p>
+              </div>
+            </>
+          )}
+
+          {guidedPhase === 'reflect' && (
+            <>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: COLORS.white, margin: '0 0 16px 0' }}>
+                Review Your Results
+              </h3>
+
+              {generateReflectionPrompts(chars, metrics, history, decisions, round).map((prompt, i) => (
+                <div key={i} className="guided-insight">
+                  <span className="guided-insight-icon" aria-hidden="true">{prompt.icon}</span>
+                  <span className="guided-insight-text">{prompt.text}</span>
+                </div>
+              ))}
+
+              <div className="guided-facilitation">
+                <div className="guided-facilitation-label">Discussion Prompt</div>
+                <p className="guided-facilitation-text">
+                  {FACILITATION_PROMPTS.reflect.find(p => p.round === round)?.prompt ||
+                   FACILITATION_PROMPTS.reflect[0].prompt}
+                </p>
+              </div>
+
+              <button
+                onClick={endRound}
+                aria-label={round >= 4 ? 'View your final results' : `Start quarter ${round + 1}`}
+                style={{
+                  width: '100%',
+                  marginTop: 20,
+                  padding: '12px 24px',
+                  background: COLORS.teal,
+                  border: 'none',
+                  borderRadius: 22,
+                  color: COLORS.white,
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                  minHeight: 48,
+                }}
+              >
+                {round >= 4 ? 'View Results' : `Start Q${round + 1}`}
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Mobile collapse toggle at bottom */}
+        <button
+          className="hide-desktop"
+          onClick={() => setGuidedPanelOpen(false)}
+          aria-label="Collapse Quarter Guide"
+          style={{
+            width: '100%',
+            padding: '8px',
+            background: 'transparent',
+            border: 'none',
+            borderTop: `1px solid ${COLORS.white}10`,
+            color: `${COLORS.white}60`,
+            fontFamily: "'Poppins', sans-serif",
+            fontSize: '0.7rem',
+            cursor: 'pointer',
+            textTransform: 'uppercase',
+            letterSpacing: 1,
+          }}
+        >
+          Collapse ▲
+        </button>
+      </aside>
     );
   };
 
@@ -2410,60 +3285,83 @@ export default function App() {
       <style>{styles}</style>
       <a href="#game-content" className="skip-link">Skip to game content</a>
 
-      {/* Metric Change Notifications */}
-      <div
-        aria-live="polite"
-        aria-label="Metric changes"
-        style={{
-          position: 'fixed',
-          top: 80,
-          right: 20,
-          zIndex: 1000,
-          pointerEvents: 'none',
-          maxWidth: 220
-        }}
-      >
-        {notifications.map((n, i) => {
-          const bgColor = n.isPositive
-            ? `linear-gradient(135deg, ${COLORS.greyDark} 0%, rgba(45, 213, 196, 0.25) 100%)`
-            : `linear-gradient(135deg, ${COLORS.greyDark} 0%, rgba(255, 71, 87, 0.25) 100%)`;
-          const borderColor = n.isPositive ? COLORS.teal : '#ff4757';
-          const textColor = n.isPositive ? COLORS.teal : '#ff4757';
-          const displayDelta = n.delta > 0 ? `+${n.delta}` : n.delta;
-
-          return (
-            <div
-              key={n.id}
-              className={`metric-notification ${n.isPositive ? 'positive' : 'negative'}`}
-              style={{
-                background: bgColor,
-                borderLeft: `3px solid ${borderColor}`,
-                borderRadius: 8,
-                padding: '12px 16px',
-                marginBottom: 8,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 16,
-                minWidth: 180,
-                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
-                animationDelay: `${i * 50}ms`
-              }}
-            >
-              <span style={{ color: `${COLORS.white}cc`, fontSize: '0.85rem', fontWeight: 500 }}>
-                {n.label}
-              </span>
-              <span style={{ color: textColor, fontSize: '1.1rem', fontWeight: 700, fontFamily: "'Poppins', sans-serif" }}>
-                {displayDelta}
+      {/* Metric Changes Overlay */}
+      {showMetricOverlay && notifications.length > 0 && (
+        <div className="metric-overlay-backdrop" onClick={() => setShowMetricOverlay(false)}>
+          <div className="metric-overlay-panel" onClick={e => e.stopPropagation()} role="dialog" aria-label="Key metric changes this quarter">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: COLORS.white, margin: 0, textTransform: 'uppercase', letterSpacing: 1.5 }}>
+                Key Metric Changes
+              </h2>
+              <span style={{ fontSize: '0.7rem', color: `${COLORS.white}60`, background: `${COLORS.purple}30`, padding: '4px 10px', borderRadius: 12, fontWeight: 600 }}>
+                Q{round}
               </span>
             </div>
-          );
-        })}
-      </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+              {notifications.map((n, i) => {
+                const bgColor = n.isPositive
+                  ? `linear-gradient(135deg, ${COLORS.greyDark} 0%, rgba(45, 213, 196, 0.15) 100%)`
+                  : `linear-gradient(135deg, ${COLORS.greyDark} 0%, rgba(255, 71, 87, 0.15) 100%)`;
+                const borderColor = n.isPositive ? COLORS.teal : '#ff4757';
+                const textColor = n.isPositive ? COLORS.teal : '#ff4757';
+                const displayDelta = n.delta > 0 ? `+${n.delta}` : n.delta;
+
+                return (
+                  <div
+                    key={n.id}
+                    className="metric-overlay-item"
+                    style={{
+                      background: bgColor,
+                      borderLeft: `3px solid ${borderColor}`,
+                      borderRadius: 10,
+                      padding: '14px 18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 16,
+                      animationDelay: `${i * 150}ms`,
+                    }}
+                  >
+                    <span style={{ color: `${COLORS.white}cc`, fontSize: '0.9rem', fontWeight: 500 }}>
+                      {n.label}
+                    </span>
+                    <span style={{ color: textColor, fontSize: '1.2rem', fontWeight: 700, fontFamily: "'Poppins', sans-serif" }}>
+                      {displayDelta}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setShowMetricOverlay(false)}
+              style={{
+                width: '100%',
+                padding: '12px 24px',
+                background: COLORS.purple,
+                border: 'none',
+                borderRadius: 22,
+                color: COLORS.white,
+                fontFamily: "'Poppins', sans-serif",
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                letterSpacing: 1,
+                minHeight: 44,
+              }}
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Responsive Header */}
       <header className="game-header" style={{ background: `linear-gradient(90deg, ${COLORS.greyDark} 0%, ${COLORS.grey} 100%)`, borderBottom: `1px solid ${COLORS.white}10` }}>
         <div className="header-brand">
+          <img src="/jam-pan-logo.png" alt="Jam Pan" style={{ height: 24 }} onError={(e) => { e.target.style.display = 'none'; }} />
           <span className="brand-text" style={{ fontSize: '1rem', fontWeight: 700, color: COLORS.white }}>UNDER <span style={{ color: COLORS.purple }}>PRESSURE</span></span>
           <div aria-label={`Quarter ${round} of 4`} style={{ background: `${COLORS.purple}30`, padding: '4px 12px', borderRadius: 15, fontSize: '0.75rem', color: COLORS.purple, fontWeight: 600 }}>Q{round}/4</div>
           <div aria-label={`Budget: £${budget.current.toLocaleString()}`} style={{ background: `${COLORS.teal}30`, padding: '4px 12px', borderRadius: 15, fontSize: '0.75rem', color: COLORS.teal, fontWeight: 600 }}>
@@ -2560,7 +3458,8 @@ export default function App() {
         </div>
       </header>
 
-      <div id="game-content" className="game-content" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div id="game-content" className="game-content" style={{ flex: 1, display: 'flex', overflow: 'hidden', flexDirection: isMobile ? 'column' : 'row' }}>
+        {renderGuidedPanel()}
         {tab === 'dashboard' && (
           <div role="tabpanel" id="dashboard-panel" aria-label="Dashboard view" className="dashboard-grid" style={{ flex: 1 }}>
 
@@ -2597,7 +3496,7 @@ export default function App() {
             </div>
 
             {/* Desktop sidebar with metrics and investments - hidden on mobile */}
-            <aside className="hide-mobile" style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+            <aside className="hide-mobile" style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0, overflow: 'hidden' }}>
               <section ref={metricsRef} aria-labelledby="metrics-heading" aria-live="polite" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 14, border: `1px solid ${COLORS.white}10`, flexShrink: 0 }}>
                 <h2 id="metrics-heading" style={{ fontSize: '0.75rem', color: COLORS.purple, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10, fontWeight: 600 }}>Metrics</h2>
                 {[{ k: 'trust', l: 'Trust', i: '🤝' }, { k: 'engagement', l: 'Engagement', i: '⚡' }, { k: 'performance', l: 'Performance', i: '📈' }, { k: 'fairness', l: 'Fairness', i: '⚖️' }, { k: 'credibility', l: 'Credibility', i: '🎯' }].map(x => (
@@ -2620,7 +3519,36 @@ export default function App() {
             </aside>
             {/* Middle column - event and observations */}
             <div className="middle-column">
-              {event && !done ? (() => {
+              {guidedPhase === 'plan' ? (
+                <div style={{
+                  background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`,
+                  borderRadius: 14,
+                  padding: 35,
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: `1px solid ${COLORS.purple}30`,
+                  textAlign: 'center',
+                }}>
+                  <div aria-hidden="true" style={{ fontSize: '3rem', marginBottom: 15, opacity: 0.6 }}>🧭</div>
+                  <h2 style={{ fontSize: '1.3rem', fontWeight: 600, color: COLORS.white, margin: '0 0 10px 0' }}>
+                    Reviewing the Situation
+                  </h2>
+                  <p style={{ fontSize: '0.9rem', color: `${COLORS.white}80`, maxWidth: 360, lineHeight: 1.6, marginBottom: 20 }}>
+                    {isMobile
+                      ? 'Review the Quarter Guide above, then tap "Ready to Start" when you\'re ready.'
+                      : 'Review the situation in the Quarter Guide, then click "Ready to Start" when you\'re ready to begin.'}
+                  </p>
+                  {!isMobile && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: COLORS.purple, fontSize: '0.85rem', fontWeight: 600 }}>
+                      <span className="guided-arrow-hint" aria-hidden="true" style={{ fontSize: '1.2rem' }}>←</span>
+                      <span>Start in the Quarter Guide</span>
+                    </div>
+                  )}
+                </div>
+              ) : event && !done ? (() => {
                 const totalCost = calculateInvestmentCost(inv);
                 const canAfford = totalCost <= budget.current;
                 const totalTime = TIME_INVESTMENTS.reduce((sum, x) => sum + inv[x.id], 0);
@@ -2687,8 +3615,10 @@ export default function App() {
                 <section aria-label="Quarter complete" style={{ background: `linear-gradient(135deg, ${COLORS.darkTeal}50 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 35, flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: `1px solid ${COLORS.teal}30`, textAlign: 'center' }}>
                   <div aria-hidden="true" style={{ fontSize: '3.5rem', marginBottom: 15 }}>✓</div>
                   <h2 style={{ fontSize: '1.6rem', fontWeight: 700, color: COLORS.white, margin: '0 0 12px 0' }}>Quarter {round} Complete</h2>
-                  <p style={{ fontSize: '0.95rem', color: `${COLORS.white}cc`, marginBottom: 25, maxWidth: 320 }}>You handled {handled + 1} situations this quarter.</p>
-                  <button onClick={endRound} aria-label={round >= 4 ? 'View your final results' : `Start quarter ${round + 1}`} style={{ padding: '14px 35px', background: COLORS.teal, border: 'none', borderRadius: 22, color: COLORS.white, fontFamily: "'Poppins', sans-serif", fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: 2, minHeight: 52 }}>{round >= 4 ? 'View Results' : `Start Q${round + 1}`}</button>
+                  <p style={{ fontSize: '0.95rem', color: `${COLORS.white}cc`, marginBottom: 20, maxWidth: 320 }}>You handled {handled + 1} situations this quarter.</p>
+                  <p style={{ fontSize: '0.85rem', color: `${COLORS.white}80`, maxWidth: 300, lineHeight: 1.5 }}>
+                    {isMobile ? 'Review your results in the Quarter Guide above.' : 'Review your results in the Quarter Guide.'}
+                  </p>
                 </section>
               ) : null}
               <section ref={observationsRef} aria-labelledby="observations-heading" aria-live="polite" className="observations-panel" style={{ background: `linear-gradient(180deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 14, padding: 16, border: `1px solid ${COLORS.white}10`, display: 'flex', flexDirection: 'column' }}>
