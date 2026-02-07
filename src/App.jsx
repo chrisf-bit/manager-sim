@@ -3150,7 +3150,8 @@ export default function App() {
       setGuidedPhase('execute');
     };
 
-    const hasSetInvestments = Object.values(inv).some(v => v > 0);
+    const hasSetBudget = BUDGET_INVESTMENTS.some(x => inv[x.id] > 0);
+    const hasSetTime = TIME_INVESTMENTS.some(x => inv[x.id] > 0);
     const totalEvents = events.length + handled;
 
     if (!guidedPanelOpen) {
@@ -3262,11 +3263,19 @@ export default function App() {
               </h3>
 
               <div className="guided-checklist-item">
-                <div className={`guided-check ${hasSetInvestments ? 'done' : ''}`}>
-                  {hasSetInvestments ? '✓' : ''}
+                <div className={`guided-check ${hasSetBudget ? 'done' : ''}`}>
+                  {hasSetBudget ? '✓' : ''}
                 </div>
-                <span className={`guided-check-label ${hasSetInvestments ? 'done' : ''}`}>
-                  Set investments
+                <span className={`guided-check-label ${hasSetBudget ? 'done' : ''}`}>
+                  Budget investments (£)
+                </span>
+              </div>
+              <div className="guided-checklist-item">
+                <div className={`guided-check ${hasSetTime ? 'done' : ''}`}>
+                  {hasSetTime ? '✓' : ''}
+                </div>
+                <span className={`guided-check-label ${hasSetTime ? 'done' : ''}`}>
+                  Time investments (%)
                 </span>
               </div>
               {inv.oneOnOnes > 0 && (
@@ -3311,9 +3320,13 @@ export default function App() {
                   Tip
                 </div>
                 <p style={{ fontSize: '0.8rem', color: `${COLORS.white}99`, lineHeight: 1.5, margin: 0 }}>
-                  {hasSetInvestments
+                  {hasSetBudget && hasSetTime
                     ? 'Your investments shape how events play out. Higher relevant investments soften negative outcomes.'
-                    : 'Set your budget and time investments before handling events. They affect your options\' effectiveness.'
+                    : !hasSetBudget && !hasSetTime
+                      ? 'Set your budget and time investments before handling events. They affect your options\' effectiveness.'
+                      : !hasSetBudget
+                        ? 'Don\'t forget to allocate your budget — it funds training, tools, recognition and team activities.'
+                        : 'Don\'t forget your time investments — 1:1s, coaching, strategy and self-care shape your quarter.'
                   }
                 </p>
               </div>
