@@ -228,11 +228,11 @@ const generatePlanInsights = (chars, metrics, budget, round, history) => {
 
   const avgEngagement = active.reduce((s, c) => s + c.engagement, 0) / Math.max(1, active.length);
   if (avgEngagement < 50) {
-    insights.push({ icon: '📉', text: `Team engagement is low (avg ${Math.round(avgEngagement)}). Consider investing in team building or recognition.` });
+    insights.push({ icon: '📉', text: `Team engagement is low (avg ${Math.round(avgEngagement)}).` });
   } else if (avgEngagement > 75) {
-    insights.push({ icon: '✅', text: `Team engagement is healthy (avg ${Math.round(avgEngagement)}). Maintain momentum.` });
+    insights.push({ icon: '✅', text: `Team engagement is healthy (avg ${Math.round(avgEngagement)}).` });
   } else {
-    insights.push({ icon: '📊', text: `Team engagement is moderate (avg ${Math.round(avgEngagement)}). Room for improvement.` });
+    insights.push({ icon: '📊', text: `Team engagement is moderate (avg ${Math.round(avgEngagement)}).` });
   }
 
   const overloaded = active.filter(c => c.loadPercent > 120);
@@ -248,7 +248,7 @@ const generatePlanInsights = (chars, metrics, budget, round, history) => {
   if (budget.current === 0) {
     insights.push({ icon: '🚫', text: 'No budget remaining. You can only make time investments this quarter.' });
   } else if (budget.current < 1000) {
-    insights.push({ icon: '💰', text: `Budget tight at £${budget.current.toLocaleString()}. Prioritise carefully.` });
+    insights.push({ icon: '💰', text: `Budget tight at £${budget.current.toLocaleString()}.` });
   } else {
     insights.push({ icon: '💰', text: `£${budget.current.toLocaleString()} available this quarter.` });
   }
@@ -259,11 +259,11 @@ const generatePlanInsights = (chars, metrics, budget, round, history) => {
   }
 
   if (metrics.trust < 50) {
-    insights.push({ icon: '🤝', text: `Trust is critically low (${Math.round(metrics.trust)}). Prioritise transparency and follow-through.` });
+    insights.push({ icon: '🤝', text: `Trust is critically low (${Math.round(metrics.trust)}).` });
   }
 
   if (metrics.emotionalLoad > 70) {
-    insights.push({ icon: '🧠', text: `Your personal load is high (${Math.round(metrics.emotionalLoad)}%). Consider self-care investments.` });
+    insights.push({ icon: '🧠', text: `Your personal load is high (${Math.round(metrics.emotionalLoad)}%).` });
   }
 
   const departed = chars.filter(c => c.departed).length;
@@ -319,7 +319,7 @@ const generateReflectionPrompts = (chars, metrics, history, decisions, round) =>
   }
 
   if (metrics.trust > 75 && metrics.performance < 60) {
-    prompts.push({ icon: '🤔', text: "Your team trusts you, but performance is lagging. Are you avoiding difficult conversations?" });
+    prompts.push({ icon: '🤔', text: "Your team trusts you, but performance is lagging. What might be behind that gap?" });
   }
   if (metrics.performance > 80 && metrics.trust < 50) {
     prompts.push({ icon: '🤔', text: "Results are strong but trust is fragile. Is this approach sustainable long-term?" });
