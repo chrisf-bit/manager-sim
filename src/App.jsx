@@ -33,6 +33,7 @@ const TIME_INVESTMENTS = [
 ];
 
 const TUTORIAL_STEPS = [
+  { id: 'guide', title: 'Quarter Guide', icon: '🧭', description: 'Your companion each quarter. It walks you through Plan, Execute and Reflect phases with contextual prompts.', position: 'right' },
   { id: 'metrics', title: 'Metrics', icon: '📊', description: 'These six measures show how your team is doing. Green is healthy, yellow is warning, red is trouble.', position: 'right' },
   { id: 'load', title: 'Your Load', icon: '🔋', description: 'Your personal stress level. Push too hard for too long and it affects your effectiveness.', position: 'right' },
   { id: 'investments', title: 'Investments', icon: '💰', description: 'Allocate your budget and time each quarter. These choices shape how events play out.', position: 'right' },
@@ -1577,6 +1578,7 @@ export default function App() {
   const observationAnimationRef = useRef(null);
 
   // Tutorial target refs
+  const guidedPanelRef = useRef(null);
   const metricsRef = useRef(null);
   const loadRef = useRef(null);
   const investmentsRef = useRef(null);
@@ -1588,6 +1590,7 @@ export default function App() {
   // Tutorial helper functions
   const getTargetRef = (stepId) => {
     const refMap = {
+      guide: guidedPanelRef,
       metrics: metricsRef,
       load: loadRef,
       investments: investmentsRef,
@@ -1600,8 +1603,14 @@ export default function App() {
   };
 
   const nextTutorialStep = () => {
-    if (tutorialStep < TUTORIAL_STEPS.length - 1) {
-      setTutorialStep(tutorialStep + 1);
+    const nextIdx = tutorialStep + 1;
+    if (nextIdx < TUTORIAL_STEPS.length) {
+      // Auto-advance from Plan to Execute when reaching event-dependent steps
+      const nextStep = TUTORIAL_STEPS[nextIdx];
+      if (['event', 'options'].includes(nextStep.id) && guidedPhase === 'plan') {
+        setGuidedPhase('execute');
+      }
+      setTutorialStep(nextIdx);
     } else {
       setShowTutorial(false);
       setTutorialStep(0);
@@ -1788,9 +1797,20 @@ export default function App() {
     const [tooltipStyle, setTooltipStyle] = useState({});
     const [spotlightStyle, setSpotlightStyle] = useState({});
     const [arrowStyle, setArrowStyle] = useState({});
+    const [refReady, setRefReady] = useState(!!targetRef?.current);
+
+    // Retry until the ref appears (handles phase transitions where DOM updates async)
+    useEffect(() => {
+      if (targetRef?.current) { setRefReady(true); return; }
+      setRefReady(false);
+      const interval = setInterval(() => {
+        if (targetRef?.current) { setRefReady(true); clearInterval(interval); }
+      }, 100);
+      return () => clearInterval(interval);
+    }, [targetRef, tutorialStep]);
 
     useEffect(() => {
-      if (!targetRef?.current) return;
+      if (!targetRef?.current || !refReady) return;
 
       const updatePosition = () => {
         const rect = targetRef.current.getBoundingClientRect();
@@ -1866,9 +1886,9 @@ export default function App() {
       updatePosition();
       window.addEventListener('resize', updatePosition);
       return () => window.removeEventListener('resize', updatePosition);
-    }, [targetRef, currentStep, tutorialStep]);
+    }, [targetRef, currentStep, tutorialStep, refReady]);
 
-    if (!targetRef?.current) return null;
+    if (!targetRef?.current || !refReady) return null;
 
     const isLastStep = tutorialStep === TUTORIAL_STEPS.length - 1;
 
@@ -3151,6 +3171,7 @@ export default function App() {
 
     return (
       <aside
+        ref={guidedPanelRef}
         className={`guided-panel force-open ${guidedPhase === 'plan' ? 'plan-active' : ''}`}
         role="complementary"
         aria-label="Quarter Guide"
