@@ -2482,6 +2482,7 @@ export default function App() {
         <div aria-hidden="true" className="animate-pulse hide-mobile" style={{ position: 'absolute', top: '10%', left: '5%', width: 300, height: 300, borderRadius: '50%', background: `radial-gradient(circle, ${COLORS.purple}20 0%, transparent 70%)` }} />
         <div aria-hidden="true" className="animate-pulse hide-mobile" style={{ position: 'absolute', bottom: '15%', right: '10%', width: 200, height: 200, borderRadius: '50%', background: `radial-gradient(circle, ${COLORS.teal}20 0%, transparent 70%)` }} />
         <div id="main-content" className="intro-content">
+
           <h1 className="intro-title" style={{ color: COLORS.white }}>Under <span style={{ color: COLORS.purple }}>Pressure</span></h1>
           <p className="intro-subtitle" style={{ color: COLORS.teal }}>The People Management Simulation</p>
           <p className="intro-description" style={{ color: `${COLORS.white}cc`, fontWeight: 300 }}>Lead a team through realistic challenges. Allocate your time and budget, then navigate difficult situations where your investments shape the outcomes.</p>
@@ -2812,6 +2813,7 @@ export default function App() {
         <a href="#results-content" className="skip-link">Skip to results</a>
         <header style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${COLORS.white}10`, flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+
             <span className="brand-text" style={{ fontSize: '1.25rem', fontWeight: 700, color: COLORS.white }}>UNDER <span style={{ color: COLORS.purple }}>PRESSURE</span></span>
           </div>
           <button onClick={reset} aria-label="Start a new simulation" className="play-again-btn" style={{ padding: '10px 20px', background: 'transparent', border: `2px solid ${COLORS.purple}`, color: COLORS.purple, borderRadius: 25, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 1, minHeight: 44 }}>Play Again</button>
@@ -3320,7 +3322,7 @@ export default function App() {
 
               <button
                 onClick={endRound}
-                aria-label={round >= 4 ? 'View your final results' : `Start quarter ${round + 1}`}
+                aria-label={round >= 4 ? 'View your final results' : 'End this quarter'}
                 style={{
                   width: '100%',
                   marginTop: 20,
@@ -3338,7 +3340,7 @@ export default function App() {
                   minHeight: 48,
                 }}
               >
-                {round >= 4 ? 'View Results' : `Start Q${round + 1}`}
+                {round >= 4 ? 'View Results' : 'End Quarter'}
               </button>
             </>
           )}
@@ -3450,6 +3452,7 @@ export default function App() {
       {/* Responsive Header */}
       <header className="game-header" style={{ background: `linear-gradient(90deg, ${COLORS.greyDark} 0%, ${COLORS.grey} 100%)`, borderBottom: `1px solid ${COLORS.white}10` }}>
         <div className="header-brand">
+
           <span className="brand-text" style={{ fontSize: '1rem', fontWeight: 700, color: COLORS.white }}>UNDER <span style={{ color: COLORS.purple }}>PRESSURE</span></span>
           <div aria-label={`Quarter ${round} of 4`} style={{ background: `${COLORS.purple}30`, padding: '4px 12px', borderRadius: 15, fontSize: '0.75rem', color: COLORS.purple, fontWeight: 600 }}>Q{round}/4</div>
           <div aria-label={`Budget: £${budget.current.toLocaleString()}`} style={{ background: `${COLORS.teal}30`, padding: '4px 12px', borderRadius: 15, fontSize: '0.75rem', color: COLORS.teal, fontWeight: 600 }}>
