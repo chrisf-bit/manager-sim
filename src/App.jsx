@@ -27,7 +27,7 @@ const INVESTMENT_COSTS = {
 
 const TIME_INVESTMENTS = [
   { id: 'oneOnOnes', label: '1:1s', icon: '💬', effects: { trust: 0.1, credibility: 0.08, fairness: 0.04 }, loadEffect: 0.15, helpText: 'Regular individual meetings. Choose who to meet — selected people get a trust and engagement boost. Higher investment unlocks more slots.' },
-  { id: 'coaching', label: 'Coaching', icon: '🎓', effects: { performance: 0.06, engagement: 0.06, credibility: 0.06 }, loadEffect: 0.2, helpText: 'Hands-on skill development. Affects performance, engagement, and credibility. High time cost.' },
+  { id: 'coaching', label: 'Coaching', icon: '🎓', effects: { performance: 0.06, engagement: 0.06, credibility: 0.06 }, loadEffect: 0.2, helpText: 'Hands-on skill development. Choose who to coach — selected people get a performance and engagement boost. High time cost.' },
   { id: 'strategy', label: 'Strategy', icon: '📊', effects: { performance: 0.08, credibility: 0.08 }, loadEffect: 0.08, helpText: 'Planning and direction-setting. Affects performance and credibility. Moderate time cost.' },
   { id: 'selfCare', label: 'Your Wellbeing', icon: '🧘', effects: { credibility: 0.04 }, loadEffect: -0.5, helpText: 'Time for your own wellbeing. Reduces your personal load significantly.' },
 ];
@@ -1553,6 +1553,7 @@ export default function App() {
   const [guidedPhase, setGuidedPhase] = useState('plan'); // 'plan' | 'execute' | 'reflect'
   const [guidedPanelOpen, setGuidedPanelOpen] = useState(typeof window !== 'undefined' && window.innerWidth >= 1200);
   const [oneOnOneTargets, setOneOnOneTargets] = useState([]); // Character IDs selected for 1:1s
+  const [coachingTargets, setCoachingTargets] = useState([]); // Character IDs selected for coaching
 
   // Tutorial state
   const [showTutorialPrompt, setShowTutorialPrompt] = useState(false);
@@ -2323,6 +2324,7 @@ export default function App() {
     setGuidedPhase('plan');
     setGuidedPanelOpen(window.innerWidth >= 1200);
     setOneOnOneTargets([]);
+    setCoachingTargets([]);
     setRoundStartMetrics(INITIAL_METRICS);
     setNotifications([]);
     setShowMetricOverlay(false);
@@ -2449,6 +2451,7 @@ export default function App() {
     setGuidedPhase('plan');
     setGuidedPanelOpen(window.innerWidth >= 1200);
     setOneOnOneTargets([]);
+    setCoachingTargets([]);
     setRoundStartMetrics(INITIAL_METRICS);
     setNotifications([]);
     setShowMetricOverlay(false);
@@ -2664,6 +2667,7 @@ export default function App() {
               setEvent(e[0] || null);
               setGuidedPhase('plan');
               setOneOnOneTargets([]);
+              setCoachingTargets([]);
               setRoundStartMetrics({ ...metrics });
               setNotifications([]);
               setShowMetricOverlay(false);
@@ -2878,7 +2882,7 @@ export default function App() {
               transition: 'all 0.15s ease-out',
             }}
           >
-            ⏱️ Time {inv.oneOnOnes > 0 && oneOnOneTargets.length === 0 ? '•' : ''}
+            ⏱️ Time {(inv.oneOnOnes > 0 && oneOnOneTargets.length === 0) || (inv.coaching > 0 && coachingTargets.length === 0) ? '•' : ''}
           </button>
         </div>
 
@@ -2946,6 +2950,13 @@ export default function App() {
                       if (oneOnOneTargets.length > newMax) setOneOnOneTargets(oneOnOneTargets.slice(0, newMax));
                     }
                   }
+                  if (x.id === 'coaching') {
+                    if (newVal === 0) setCoachingTargets([]);
+                    else {
+                      const newMax = Math.min(Math.ceil(newVal / 25), chars.filter(c => !c.departed).length);
+                      if (coachingTargets.length > newMax) setCoachingTargets(coachingTargets.slice(0, newMax));
+                    }
+                  }
                 }} aria-label={`${x.label} investment: ${inv[x.id]} percent`} />
                 <div style={{ fontSize: '0.65rem', color: `${COLORS.white}60`, marginTop: 2, lineHeight: 1.3 }}>{x.helpText}</div>
                 {x.id === 'oneOnOnes' && inv.oneOnOnes > 0 && (() => {
@@ -3006,6 +3017,64 @@ export default function App() {
                     </div>
                   );
                 })()}
+                {x.id === 'coaching' && inv.coaching > 0 && (() => {
+                  const availableChars = chars.filter(c => !c.departed);
+                  const maxSlots = Math.min(Math.ceil(inv.coaching / 25), availableChars.length);
+                  return (
+                    <div style={{ marginTop: 8, padding: 10, background: `${COLORS.blue}12`, borderRadius: 10, border: `1px solid ${COLORS.blue}25` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <span style={{ fontSize: '0.7rem', color: COLORS.blue, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
+                          Who will you coach?
+                        </span>
+                        <span style={{ fontSize: '0.65rem', color: `${COLORS.white}60` }}>
+                          {coachingTargets.length}/{maxSlots} slots
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {availableChars.map(c => {
+                          const isSelected = coachingTargets.includes(c.id);
+                          const canSelect = isSelected || coachingTargets.length < maxSlots;
+                          return (
+                            <button
+                              key={c.id}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setCoachingTargets(coachingTargets.filter(id => id !== c.id));
+                                } else if (canSelect) {
+                                  playSound('slider');
+                                  setCoachingTargets([...coachingTargets, c.id]);
+                                }
+                              }}
+                              disabled={!canSelect && !isSelected}
+                              aria-label={`${isSelected ? 'Remove' : 'Select'} ${c.name} for coaching`}
+                              aria-pressed={isSelected}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px',
+                                background: isSelected ? `${COLORS.blue}30` : `${COLORS.black}40`,
+                                border: `1px solid ${isSelected ? COLORS.blue : `${COLORS.white}15`}`,
+                                borderRadius: 20,
+                                color: isSelected ? COLORS.white : canSelect ? `${COLORS.white}99` : `${COLORS.white}30`,
+                                fontFamily: "'Poppins', sans-serif", fontSize: '0.7rem',
+                                fontWeight: isSelected ? 600 : 400,
+                                cursor: canSelect || isSelected ? 'pointer' : 'default',
+                                transition: 'all 0.15s ease-out',
+                              }}
+                            >
+                              <span aria-hidden="true" style={{ fontSize: '0.85rem' }}>{c.avatar}</span>
+                              <span>{c.name.split(' ')[0]}</span>
+                              {isSelected && <span aria-hidden="true" style={{ fontSize: '0.6rem', marginLeft: 2 }}>✓</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {coachingTargets.length > 0 && (
+                        <div style={{ marginTop: 8, fontSize: '0.6rem', color: `${COLORS.white}50`, lineHeight: 1.4 }}>
+                          Selected team members will get a performance and engagement boost this quarter.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </>
@@ -3027,23 +3096,31 @@ export default function App() {
 
     const handlePlanProceed = () => {
       playSound('confirm');
-      // Apply 1:1 boosts to selected characters
+      // Apply 1:1 and coaching boosts to selected characters
+      let updatedChars = [...chars];
       if (inv.oneOnOnes > 0 && oneOnOneTargets.length > 0) {
         const intensity = inv.oneOnOnes / 100;
         const trustBoost = 3 + intensity * 4;   // 3-7 per person
         const engagementBoost = 2 + intensity * 3; // 2-5 per person
-        const updatedChars = chars.map(c => {
+        updatedChars = updatedChars.map(c => {
           if (oneOnOneTargets.includes(c.id) && !c.departed) {
-            return {
-              ...c,
-              trust: clamp(c.trust + trustBoost, 0, 100),
-              engagement: clamp(c.engagement + engagementBoost, 0, 100),
-            };
+            return { ...c, trust: clamp(c.trust + trustBoost, 0, 100), engagement: clamp(c.engagement + engagementBoost, 0, 100) };
           }
           return c;
         });
-        setChars(updatedChars);
       }
+      if (inv.coaching > 0 && coachingTargets.length > 0) {
+        const intensity = inv.coaching / 100;
+        const perfBoost = 2 + intensity * 4;       // 2-6 per person
+        const engagementBoost = 2 + intensity * 3;  // 2-5 per person
+        updatedChars = updatedChars.map(c => {
+          if (coachingTargets.includes(c.id) && !c.departed) {
+            return { ...c, performance: clamp(c.performance + perfBoost, 0, 100), engagement: clamp(c.engagement + engagementBoost, 0, 100) };
+          }
+          return c;
+        });
+      }
+      if (updatedChars !== chars) setChars(updatedChars);
       setGuidedPhase('execute');
     };
 
@@ -3172,6 +3249,16 @@ export default function App() {
                   </div>
                   <span className={`guided-check-label ${oneOnOneTargets.length > 0 ? 'done' : ''}`}>
                     1:1s scheduled ({oneOnOneTargets.length} selected)
+                  </span>
+                </div>
+              )}
+              {inv.coaching > 0 && (
+                <div className="guided-checklist-item">
+                  <div className={`guided-check ${coachingTargets.length > 0 ? 'done' : ''}`}>
+                    {coachingTargets.length > 0 ? '✓' : ''}
+                  </div>
+                  <span className={`guided-check-label ${coachingTargets.length > 0 ? 'done' : ''}`}>
+                    Coaching scheduled ({coachingTargets.length} selected)
                   </span>
                 </div>
               )}
