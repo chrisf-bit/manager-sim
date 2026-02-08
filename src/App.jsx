@@ -3931,22 +3931,60 @@ export default function App() {
                   <p style={{ fontSize: '0.95rem', color: `${COLORS.white}cc`, lineHeight: 1.6, marginBottom: 12 }}>{event.description}</p>
                   {event.character && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '6px 10px', background: `${COLORS.black}40`, borderRadius: 8, width: 'fit-content' }}><span aria-hidden="true" style={{ fontSize: '1.2rem' }}>{chars.find(c => c.id === event.character)?.avatar}</span><span style={{ color: `${COLORS.white}cc`, fontSize: '0.8rem' }}>Involves: <strong style={{ color: COLORS.white }}>{chars.find(c => c.id === event.character)?.name}</strong></span></div>}
                   <fieldset style={{ border: 'none', margin: 0, padding: 0, marginTop: 'auto' }}>
+                    {metrics.emotionalLoad >= 75 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '8px 12px', background: metrics.emotionalLoad >= 85 ? '#ff475720' : `${COLORS.yellow}15`, borderRadius: 8, borderLeft: `3px solid ${metrics.emotionalLoad >= 85 ? '#ff4757' : COLORS.yellow}` }}>
+                        <span style={{ fontSize: '1rem' }}>{metrics.emotionalLoad >= 85 ? '🔥' : '😓'}</span>
+                        <span style={{ fontSize: '0.75rem', color: metrics.emotionalLoad >= 85 ? '#ff4757' : COLORS.yellow, lineHeight: 1.3 }}>
+                          {metrics.emotionalLoad >= 85
+                            ? "Burnout is limiting your options. You can't bring your best self to every situation."
+                            : "You're running on empty — your thinking isn't as sharp as usual."}
+                        </span>
+                      </div>
+                    )}
                     <legend style={{ fontSize: '0.85rem', color: COLORS.purple, marginBottom: 8, fontWeight: 600, animation: selectedOption === null ? 'pulseText 2s ease-in-out infinite' : 'none' }}>
                       Choose your response:
                     </legend>
-                    <div ref={optionsRef} role="radiogroup" aria-label="Decision options" className="options-grid">{event.options.map((o, i) => (
+                    {(() => {
+                      // When load >= 85, lock the most "thoughtful" option (highest trust + credibility)
+                      const lockedIndex = metrics.emotionalLoad >= 85
+                        ? event.options.reduce((best, o, i) => {
+                            const score = (o.effects.trust || 0) + (o.effects.credibility || 0);
+                            return score > best.score ? { index: i, score } : best;
+                          }, { index: -1, score: -Infinity }).index
+                        : -1;
+
+                      return (
+                    <div ref={optionsRef} role="radiogroup" aria-label="Decision options" className="options-grid">{event.options.map((o, i) => {
+                      const isLocked = i === lockedIndex;
+                      return (
                       <button
                         key={`option-${event.id}-${i}`}
-                        onClick={() => { playSound('select'); setSelectedOption(i); }}
+                        onClick={() => { if (!isLocked) { playSound('select'); setSelectedOption(i); } }}
                         aria-pressed={selectedOption === i}
+                        aria-disabled={isLocked}
                         className="option-btn"
-                        onFocus={e => { if (selectedOption !== i) { e.target.style.borderColor = COLORS.purple + '80'; e.target.style.background = `${COLORS.purple}20`; }}}
-                        onBlur={e => { if (selectedOption !== i) { e.target.style.borderColor = `${COLORS.white}15`; e.target.style.background = `${COLORS.black}50`; }}}
-                        onMouseOver={e => { if (selectedOption !== i) { e.target.style.borderColor = COLORS.purple + '80'; e.target.style.background = `${COLORS.purple}20`; }}}
-                        onMouseOut={e => { if (selectedOption !== i) { e.target.style.borderColor = `${COLORS.white}15`; e.target.style.background = `${COLORS.black}50`; }}}
-                        style={{ background: selectedOption === i ? `${COLORS.purple}40` : `${COLORS.black}50`, border: selectedOption === i ? `2px solid ${COLORS.purple}` : `2px dashed ${COLORS.white}15`, borderRadius: 10, color: COLORS.white, fontFamily: "'Poppins', sans-serif", cursor: 'pointer', transition: 'all 0.2s ease-out' }}
-                      >{o.text}</button>
-                    ))}</div>
+                        onFocus={e => { if (!isLocked && selectedOption !== i) { e.target.style.borderColor = COLORS.purple + '80'; e.target.style.background = `${COLORS.purple}20`; }}}
+                        onBlur={e => { if (!isLocked && selectedOption !== i) { e.target.style.borderColor = `${COLORS.white}15`; e.target.style.background = `${COLORS.black}50`; }}}
+                        onMouseOver={e => { if (!isLocked && selectedOption !== i) { e.target.style.borderColor = COLORS.purple + '80'; e.target.style.background = `${COLORS.purple}20`; }}}
+                        onMouseOut={e => { if (!isLocked && selectedOption !== i) { e.target.style.borderColor = `${COLORS.white}15`; e.target.style.background = `${COLORS.black}50`; }}}
+                        style={{
+                          background: isLocked ? `${COLORS.black}70` : selectedOption === i ? `${COLORS.purple}40` : `${COLORS.black}50`,
+                          border: isLocked ? `2px dashed #ff475740` : selectedOption === i ? `2px solid ${COLORS.purple}` : `2px dashed ${COLORS.white}15`,
+                          borderRadius: 10,
+                          color: isLocked ? `${COLORS.white}35` : COLORS.white,
+                          fontFamily: "'Poppins', sans-serif",
+                          cursor: isLocked ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.2s ease-out',
+                          position: 'relative'
+                        }}
+                      >
+                        {isLocked && <span style={{ position: 'absolute', top: 4, right: 6, fontSize: '0.6rem', color: '#ff4757', fontWeight: 600, letterSpacing: 0.5 }}>🔒 TOO STRETCHED</span>}
+                        <span style={{ opacity: isLocked ? 0.4 : 1 }}>{o.text}</span>
+                      </button>
+                      );
+                    })}</div>
+                      );
+                    })()}
                   </fieldset>
                   <button
                     onClick={() => { playSound('confirm'); decide(); }}
