@@ -192,6 +192,7 @@ const INITIAL_INVESTMENTS = { training: 0, teamBuilding: 0, tools: 0, recognitio
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const getMetricColor = (v) => v >= 70 ? COLORS.teal : v >= 40 ? COLORS.yellow : '#ff4757';
 const getDeliveryIcon = (d) => ({ email: '📧', slack: '💬', calendar: '📅', corridor: '🚶', observation: '👁️', meeting: '🤝', hr_complaint: '📋', pulse_survey: '📊', urgent_meeting: '🚨', private_meeting: '🔒', feedback: '💭', notification: '🔔', hr_report: '📑', announcement: '📢', directive: '⚡', self_reflection: '🪞', crisis: '⚠️', reflection: '💡' })[d] || '📌';
+const getEffectLabel = (k) => ({ trust: 'Trust', engagement: 'Engagement', performance: 'Performance', fairness: 'Fairness', credibility: 'Credibility', emotionalLoad: 'Your Load', retention: 'Retention' })[k] || k;
 
 const getInvestmentModifier = (event, inv) => {
   if (!event.tags?.length) return 1;
@@ -1566,6 +1567,10 @@ export default function App() {
   const [investmentTab, setInvestmentTab] = useState('budget'); // 'budget' | 'time'
   const [profileQuarter, setProfileQuarter] = useState('current'); // 'current' | 0 | 1 | 2 | 3 (history index)
 
+  // Results screen state
+  const [characterHistory, setCharacterHistory] = useState([]);
+  const [showSummaryView, setShowSummaryView] = useState(false);
+
   // Notification and sound state
   const [notifications, setNotifications] = useState([]);
   const [showMetricOverlay, setShowMetricOverlay] = useState(false);
@@ -2336,6 +2341,8 @@ export default function App() {
     setMetrics(INITIAL_METRICS);
     setChars(INITIAL_CHARACTERS);
     setHistory([{ round: 0, ...INITIAL_METRICS }]);
+    setCharacterHistory([{ round: 0, ...Object.fromEntries(INITIAL_CHARACTERS.map(c => [c.id, { trust: c.trust, engagement: c.engagement, departed: false }])) }]);
+    setShowSummaryView(false);
     setDecisions([]);
     setHandled(0);
     setDone(false);
@@ -2389,7 +2396,7 @@ export default function App() {
     );
     playSound(hasPositiveEffect ? 'positive' : 'negative');
 
-    setDecisions([...decisions, { round, eventId: event.id, eventTitle: event.title, choice: opt.text }]);
+    setDecisions([...decisions, { round, eventId: event.id, eventTitle: event.title, choice: opt.text, effects: opt.effects, character: event.character || null }]);
     setMetrics(m);
     setSelectedOption(null);
     const rem = events.filter(e => e.id !== event.id);
@@ -2430,6 +2437,7 @@ export default function App() {
 
       // Update state
       setChars(updatedChars);
+      setCharacterHistory(prev => [...prev, { round, ...Object.fromEntries(updatedChars.map(c => [c.id, { trust: c.trust, engagement: c.engagement, departed: c.departed }])) }]);
       setDepartingChar(departingCharacter);
       setTeamCapacity(updatedChars.filter(c => !c.departed).length);
       setPhase('departure');
@@ -2438,6 +2446,7 @@ export default function App() {
 
     // 5. No departure - continue normally
     setChars(updatedChars);
+    setCharacterHistory(prev => [...prev, { round, ...Object.fromEntries(updatedChars.map(c => [c.id, { trust: c.trust, engagement: c.engagement, departed: c.departed }])) }]);
 
     if (round >= 4) {
       setPhase('results');
@@ -2453,6 +2462,8 @@ export default function App() {
     setMetrics(INITIAL_METRICS);
     setChars(INITIAL_CHARACTERS);
     setHistory([{ round: 0, ...INITIAL_METRICS }]);
+    setCharacterHistory([]);
+    setShowSummaryView(false);
     setDecisions([]);
     setEvents([]);
     setEvent(null);
@@ -2836,8 +2847,65 @@ export default function App() {
 
             <span className="brand-text" style={{ fontSize: '1.25rem', fontWeight: 700, color: COLORS.white }}>UNDER <span style={{ color: COLORS.purple }}>PRESSURE</span></span>
           </div>
-          <button onClick={reset} aria-label="Start a new simulation" className="play-again-btn" style={{ padding: '10px 20px', background: 'transparent', border: `2px solid ${COLORS.purple}`, color: COLORS.purple, borderRadius: 25, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 1, minHeight: 44 }}>Play Again</button>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button onClick={() => setShowSummaryView(!showSummaryView)} aria-label={showSummaryView ? 'Back to full results' : 'Show summary view'} style={{ padding: '10px 20px', background: showSummaryView ? COLORS.teal : 'transparent', border: `2px solid ${COLORS.teal}`, color: showSummaryView ? COLORS.white : COLORS.teal, borderRadius: 25, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 1, minHeight: 44 }}>{showSummaryView ? 'Full Results' : 'Summary View'}</button>
+            <button onClick={reset} aria-label="Start a new simulation" className="play-again-btn" style={{ padding: '10px 20px', background: 'transparent', border: `2px solid ${COLORS.purple}`, color: COLORS.purple, borderRadius: 25, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 1, minHeight: 44 }}>Play Again</button>
+          </div>
         </header>
+        {showSummaryView ? (
+          <div style={{ maxWidth: 600, margin: '0 auto', padding: 'clamp(16px, 4vw, 40px)', display: 'flex', flexDirection: 'column', gap: 24, flex: 1 }}>
+            <div style={{ textAlign: 'center', marginBottom: 8 }}>
+              <div style={{ fontSize: '0.7rem', color: COLORS.purple, textTransform: 'uppercase', letterSpacing: 3, marginBottom: 4 }}>Under Pressure</div>
+              <div style={{ fontSize: '0.6rem', color: `${COLORS.white}60` }}>The People Management Simulation</div>
+            </div>
+            <div style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 16, padding: 24, border: `1px solid ${COLORS.purple}40`, textAlign: 'center' }}>
+              <div style={{ fontSize: '0.7rem', color: COLORS.purple, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 6 }}>Leadership Profile</div>
+              <h2 style={{ fontSize: '1.8rem', fontWeight: 700, color: COLORS.white, margin: '0 0 8px 0' }}>{p.title}</h2>
+              <p style={{ fontSize: '0.95rem', color: `${COLORS.white}cc`, lineHeight: 1.6, margin: 0 }}>{p.desc}</p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              {[{ k: 'trust', l: 'Trust' }, { k: 'engagement', l: 'Engagement' }, { k: 'performance', l: 'Performance' }, { k: 'fairness', l: 'Fairness' }, { k: 'credibility', l: 'Credibility' }, { k: 'emotionalLoad', l: 'Your Load' }].map(x => (
+                <div key={x.k} style={{ background: `${COLORS.black}50`, padding: 12, borderRadius: 10, textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: x.k === 'emotionalLoad' ? (f.emotionalLoad > 60 ? '#ff4757' : COLORS.teal) : getMetricColor(f[x.k]) }}>{Math.round(f[x.k])}</div>
+                  <div style={{ fontSize: '0.65rem', color: `${COLORS.white}99`, marginTop: 2 }}>{x.l}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 16, padding: 20, border: `1px solid ${COLORS.white}10` }}>
+              <div style={{ fontSize: '0.7rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>Team Status</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {chars.map(c => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${COLORS.white}08` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: '1.1rem' }}>{c.avatar}</span>
+                      <span style={{ fontSize: '0.85rem', color: COLORS.white }}>{c.name}</span>
+                    </div>
+                    {c.departed ? (
+                      <span style={{ fontSize: '0.7rem', color: COLORS.yellow, fontWeight: 600 }}>DEPARTED</span>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 12 }}>
+                        <span style={{ fontSize: '0.7rem', color: getMetricColor(c.trust) }}>T:{Math.round(c.trust)}</span>
+                        <span style={{ fontSize: '0.7rem', color: getMetricColor(c.engagement) }}>E:{Math.round(c.engagement)}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 16, padding: 20, border: `1px solid ${COLORS.white}10` }}>
+              <div style={{ fontSize: '0.7rem', color: COLORS.yellow, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>Key Moments</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {decisions.map(d => ({ ...d, totalImpact: d.effects ? Object.values(d.effects).reduce((s, v) => s + Math.abs(v || 0), 0) : 0 })).sort((a, b) => b.totalImpact - a.totalImpact).slice(0, 3).map(d => (
+                  <div key={d.eventId} style={{ padding: '10px 12px', borderRadius: 10, borderLeft: `3px solid ${COLORS.purple}`, background: `${COLORS.black}50` }}>
+                    <div style={{ fontSize: '0.7rem', color: COLORS.purple, marginBottom: 3 }}>Q{d.round}: {d.eventTitle}</div>
+                    <div style={{ fontSize: '0.85rem', color: `${COLORS.white}cc` }}>{d.choice}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ textAlign: 'center', fontSize: '0.6rem', color: `${COLORS.white}40`, paddingTop: 8 }}>Under Pressure — Leadership Development Simulation</div>
+          </div>
+        ) : (
         <div id="results-content" className="results-grid" style={{ flex: 1 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <section aria-labelledby="profile-heading" style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 16, padding: 'clamp(16px, 4vw, 30px)', border: `1px solid ${COLORS.purple}40` }}>
@@ -2864,12 +2932,77 @@ export default function App() {
                 <AreaChart data={history} aria-label="Chart showing trust and performance over time"><defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={COLORS.purple} stopOpacity={0.3}/><stop offset="95%" stopColor={COLORS.purple} stopOpacity={0}/></linearGradient></defs><XAxis dataKey="round" stroke={`${COLORS.white}50`} tick={{ fill: `${COLORS.white}99`, fontSize: 12 }} /><YAxis domain={[0, 100]} stroke={`${COLORS.white}50`} tick={{ fill: `${COLORS.white}99`, fontSize: 12 }} /><Tooltip contentStyle={{ background: COLORS.greyDark, border: `1px solid ${COLORS.white}20`, borderRadius: 10, color: COLORS.white }} /><Area type="monotone" dataKey="trust" stroke={COLORS.purple} fill="url(#tg)" strokeWidth={2} name="Trust" /><Area type="monotone" dataKey="performance" stroke={COLORS.teal} fill="transparent" strokeWidth={2} name="Performance" /></AreaChart>
               </ResponsiveContainer>
             </section>
+            <section aria-labelledby="team-journeys-heading" style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 20, padding: 25, border: `1px solid ${COLORS.white}10` }}>
+              <h3 id="team-journeys-heading" style={{ fontSize: '0.85rem', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 15, fontWeight: 600 }}>Team Journeys</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+                {INITIAL_CHARACTERS.map(ic => {
+                  const finalChar = chars.find(c => c.id === ic.id);
+                  const charData = characterHistory.map(snap => {
+                    const s = snap[ic.id];
+                    if (!s || s.departed) return null;
+                    return { round: snap.round, trust: s.trust, engagement: s.engagement };
+                  }).filter(Boolean);
+                  return (
+                    <div key={ic.id} style={{ background: `${COLORS.black}50`, borderRadius: 12, padding: 12, border: finalChar.departed ? `1px solid ${COLORS.yellow}40` : `1px solid ${COLORS.white}10` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        <span style={{ fontSize: '1.2rem' }}>{ic.avatar}</span>
+                        <div>
+                          <div style={{ fontSize: '0.75rem', color: COLORS.white, fontWeight: 600 }}>{ic.name.split(' ')[0]}</div>
+                          <div style={{ fontSize: '0.6rem', color: finalChar.departed ? COLORS.yellow : COLORS.teal }}>{finalChar.departed ? 'Departed' : 'Active'}</div>
+                        </div>
+                      </div>
+                      {charData.length > 1 ? (
+                        <ResponsiveContainer width="100%" height={50}>
+                          <LineChart data={charData}>
+                            <Line type="monotone" dataKey="trust" stroke={COLORS.purple} strokeWidth={1.5} dot={false} />
+                            <Line type="monotone" dataKey="engagement" stroke={COLORS.teal} strokeWidth={1.5} dot={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div style={{ height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', color: `${COLORS.white}50` }}>Insufficient data</div>
+                      )}
+                      {finalChar.departed && finalChar.departureReason && (
+                        <div style={{ fontSize: '0.6rem', color: `${COLORS.yellow}cc`, marginTop: 6, fontStyle: 'italic', lineHeight: 1.3 }}>{finalChar.departureReason.length > 60 ? finalChar.departureReason.substring(0, 60) + '...' : finalChar.departureReason}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginTop: 12, justifyContent: 'center' }}>
+                <span style={{ fontSize: '0.6rem', color: `${COLORS.white}70`, display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ display: 'inline-block', width: 12, height: 2, background: COLORS.purple }} /> Trust</span>
+                <span style={{ fontSize: '0.6rem', color: `${COLORS.white}70`, display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ display: 'inline-block', width: 12, height: 2, background: COLORS.teal }} /> Engagement</span>
+              </div>
+            </section>
             <section aria-labelledby="decisions-heading" style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 20, padding: 25, border: `1px solid ${COLORS.white}10`, flex: 1, overflow: 'auto' }}>
-              <h3 id="decisions-heading" style={{ fontSize: '0.85rem', color: COLORS.yellow, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 15, fontWeight: 600 }}>Key Decisions ({decisions.length})</h3>
-              <div role="list" aria-label="List of your decisions" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{decisions.slice(-6).map((d) => (<div key={d.eventId} role="listitem" style={{ background: `${COLORS.black}50`, padding: '12px 15px', borderRadius: 10, borderLeft: `3px solid ${COLORS.purple}` }}><div style={{ fontSize: '0.75rem', color: COLORS.purple, marginBottom: 4 }}>Q{d.round}: {d.eventTitle}</div><div style={{ fontSize: '0.9rem', color: `${COLORS.white}cc` }}>{d.choice}</div></div>))}</div>
+              <h3 id="decisions-heading" style={{ fontSize: '0.85rem', color: COLORS.yellow, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 15, fontWeight: 600 }}>All Decisions ({decisions.length})</h3>
+              <div role="list" aria-label="List of your decisions with outcomes" style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 500, overflowY: 'auto' }}>
+                {decisions.map((d) => {
+                  const charObj = d.character ? chars.find(c => c.id === d.character) : null;
+                  const significantEffects = d.effects ? Object.entries(d.effects).filter(([, v]) => v !== 0 && v !== undefined) : [];
+                  return (
+                    <div key={d.eventId} role="listitem" style={{ background: `${COLORS.black}50`, padding: '12px 15px', borderRadius: 10, borderLeft: `3px solid ${COLORS.purple}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <div style={{ fontSize: '0.75rem', color: COLORS.purple }}>Q{d.round}: {d.eventTitle}</div>
+                        {charObj && <span style={{ fontSize: '0.7rem', color: `${COLORS.white}80` }}>{charObj.avatar} {charObj.name.split(' ')[0]}</span>}
+                      </div>
+                      <div style={{ fontSize: '0.9rem', color: `${COLORS.white}cc`, marginBottom: significantEffects.length ? 8 : 0 }}>{d.choice}</div>
+                      {significantEffects.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {significantEffects.map(([key, val]) => (
+                            <span key={key} style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: (key === 'emotionalLoad' ? val < 0 : val > 0) ? `${COLORS.teal}20` : '#ff475720', color: (key === 'emotionalLoad' ? val < 0 : val > 0) ? COLORS.teal : '#ff4757' }}>
+                              {val > 0 ? '+' : ''}{val} {getEffectLabel(key)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </section>
           </div>
         </div>
+        )}
       </div>
     );
   }
