@@ -186,6 +186,83 @@ const ALL_EVENTS = [
   { id: 'e50', category: 'You as Manager', title: 'The Mirror', description: 'A coach asks you: "What kind of manager do you want to be remembered as?"', delivery: 'reflection', character: null, tags: ['selfCare', 'strategy'], options: [{ text: 'Results-driven - someone who delivered', effects: { trust: -5, engagement: -5, performance: 15, fairness: -5, credibility: 10 } }, { text: 'People-first - someone who cared', effects: { trust: 15, engagement: 15, performance: -10, fairness: 10, credibility: 10 } }, { text: 'Balanced - effective and humane', effects: { trust: 10, engagement: 10, performance: 5, fairness: 10, credibility: 15 } }, { text: 'Honest - someone who told the truth', effects: { trust: 15, engagement: 10, performance: 0, fairness: 15, credibility: 15 } }] },
 ];
 
+// Follow-up events that reference previous decisions — creates narrative continuity
+const FOLLOW_UP_EVENTS = [
+  // Chain: Dave's code reviews (e2) → behaviour change follow-up
+  { id: 'f1', trigger: { eventId: 'e2', optionIndex: 2 }, // Coached Dave privately
+    category: 'Performance vs Fairness', title: 'Dave Makes an Effort', description: "Since your coaching conversation, Dave has softened his code review tone. But Liam mentions the feedback still feels dismissive — just politer about it.", delivery: 'corridor', character: 'dave', tags: ['coaching', 'oneOnOnes'],
+    options: [
+      { text: 'Acknowledge progress and give it more time', effects: { trust: 5, engagement: 5, performance: 0, fairness: 5, credibility: 5 } },
+      { text: 'Set up structured review guidelines for the team', effects: { trust: 5, engagement: 10, performance: 5, fairness: 10, credibility: 10 } },
+      { text: 'Pair Dave and Liam on a project together', effects: { trust: 10, engagement: 10, performance: -5, fairness: 5, credibility: 5 } },
+      { text: 'Have a deeper conversation about empathy with Dave', effects: { trust: 10, engagement: 5, performance: -5, fairness: 10, credibility: 15 } },
+    ] },
+  { id: 'f2', trigger: { eventId: 'e2', optionIndex: 0 }, // Ignored Dave's behaviour
+    category: 'Performance vs Fairness', title: "Liam's Confidence Crisis", description: "Since nothing changed with Dave's reviews, Liam has stopped submitting code for review altogether. He's writing everything solo and it's full of bugs.", delivery: 'observation', character: 'liam', tags: ['coaching', 'oneOnOnes'],
+    options: [
+      { text: 'Address Dave directly — this has gone too far', effects: { trust: 10, engagement: 10, performance: -5, fairness: 15, credibility: 10 } },
+      { text: 'Reassure Liam and restore the review process', effects: { trust: 5, engagement: 10, performance: 0, fairness: 5, credibility: 5 } },
+      { text: 'Implement anonymous code reviews', effects: { trust: 5, engagement: 5, performance: 5, fairness: 10, credibility: 5 } },
+      { text: "It's Liam's problem — he needs thicker skin", effects: { trust: -15, engagement: -20, performance: -5, fairness: -15, credibility: -15 } },
+    ] },
+
+  // Chain: Tom's pay rise (e1) → ripple effects
+  { id: 'f3', trigger: { eventId: 'e1', optionIndex: 0 }, // Approved Tom's raise
+    category: 'Performance vs Fairness', title: 'The Raise Got Out', description: "Word has spread that Tom received a 15% raise despite his performance issues. Aisha has requested an urgent meeting — she's furious.", delivery: 'calendar', character: 'aisha', tags: ['oneOnOnes', 'recognition'],
+    options: [
+      { text: "Be transparent about your reasoning", effects: { trust: 5, engagement: 0, performance: 0, fairness: -5, credibility: 5 } },
+      { text: "Offer Aisha a matching raise for fairness", effects: { trust: 10, engagement: 15, performance: 0, fairness: 10, credibility: -5 } },
+      { text: "Acknowledge the perception problem and create clear pay criteria", effects: { trust: 10, engagement: 10, performance: 0, fairness: 15, credibility: 15 } },
+      { text: "Tell Aisha salary discussions are confidential", effects: { trust: -15, engagement: -15, performance: 0, fairness: -10, credibility: -10 } },
+    ] },
+  { id: 'f4', trigger: { eventId: 'e1', optionIndex: 3 }, // Had honest conversation with Tom
+    category: 'Performance vs Fairness', title: "Tom's Turnaround", description: "Since your honest performance conversation, Tom has been putting in visible effort. His numbers are up 15%. He stops by to say thanks for the straight talk.", delivery: 'corridor', character: 'tom', tags: ['oneOnOnes', 'coaching'],
+    options: [
+      { text: 'Recognise his effort publicly in the team meeting', effects: { trust: 10, engagement: 15, performance: 5, fairness: 10, credibility: 10 } },
+      { text: 'Acknowledge privately and set stretch goals together', effects: { trust: 10, engagement: 10, performance: 10, fairness: 5, credibility: 10 } },
+      { text: "Say you're glad but need to see sustained improvement", effects: { trust: -5, engagement: -5, performance: 5, fairness: 5, credibility: 10 } },
+      { text: 'Use this as a coaching moment — what drove the change?', effects: { trust: 15, engagement: 10, performance: 5, fairness: 5, credibility: 15 } },
+    ] },
+
+  // Chain: Sarah's workload (e3) → consequences
+  { id: 'f5', trigger: { eventId: 'e3', optionIndex: 2 }, // Waited for Sarah to raise it
+    category: 'Trust & Perception', title: "Sarah's Exit Interview", description: "Sarah has handed in her notice. In her resignation email, she writes: 'I kept waiting for someone to notice. Nobody did.'", delivery: 'email', character: 'sarah', tags: ['oneOnOnes', 'recognition'],
+    options: [
+      { text: 'Have an urgent retention conversation', effects: { trust: 5, engagement: 5, performance: -5, fairness: 5, credibility: 5 } },
+      { text: 'Accept it and learn from the mistake', effects: { trust: 5, engagement: 0, performance: -10, fairness: 10, credibility: 10, emotionalLoad: 10 } },
+      { text: 'Counter-offer with promotion and reduced workload', effects: { trust: 10, engagement: 15, performance: 0, fairness: -5, credibility: 0 } },
+      { text: 'Ask what it would take for her to stay', effects: { trust: 10, engagement: 10, performance: -5, fairness: 5, credibility: 10 } },
+    ] },
+
+  // Chain: Sarah's breakdown (e14) → aftermath
+  { id: 'f6', trigger: { eventId: 'e14', optionIndex: 1 }, // Listened fully, asked what she needs
+    category: 'Emotional & Ethical', title: 'Sarah Pays It Forward', description: "You notice Sarah mentoring Liam on his own workload management. She tells you: 'Someone did it for me, so...' The trust you built is spreading.", delivery: 'observation', character: 'sarah', tags: ['coaching', 'teamBuilding'],
+    options: [
+      { text: 'Encourage it and formalise a buddy system', effects: { trust: 10, engagement: 15, performance: 5, fairness: 10, credibility: 10 } },
+      { text: 'Thank her privately — small moments matter', effects: { trust: 15, engagement: 10, performance: 0, fairness: 5, credibility: 10 } },
+      { text: 'Give her a mentoring role with a small stipend', effects: { trust: 10, engagement: 15, performance: 5, fairness: 10, credibility: 5 } },
+      { text: "Watch quietly and let it develop naturally", effects: { trust: 5, engagement: 5, performance: 5, fairness: 5, credibility: 5 } },
+    ] },
+  { id: 'f7', trigger: { eventId: 'e14', optionIndex: 3 }, // Told her everyone's under pressure
+    category: 'Emotional & Ethical', title: "Sarah's Silence", description: "Sarah hasn't spoken in a team meeting for three weeks. Her work is functional but joyless. Liam quietly asks you: 'Is Sarah okay? She used to help me a lot.'", delivery: 'observation', character: 'sarah', tags: ['oneOnOnes', 'selfCare'],
+    options: [
+      { text: 'Reach out and apologise for your earlier response', effects: { trust: 10, engagement: 10, performance: 0, fairness: 10, credibility: 10 } },
+      { text: 'Ask Liam to check in on her', effects: { trust: -5, engagement: -5, performance: 0, fairness: -5, credibility: -10 } },
+      { text: 'Refer her to employee assistance program', effects: { trust: 0, engagement: 5, performance: 0, fairness: 5, credibility: 5 } },
+      { text: "Give her space — she'll come round", effects: { trust: -10, engagement: -15, performance: -5, fairness: -10, credibility: -10 } },
+    ] },
+
+  // Chain: Liam's comparison (e27) → growth or frustration
+  { id: 'f8', trigger: { eventId: 'e27', optionIndex: 1 }, // Gave Liam a stretch opportunity
+    category: 'Trust & Perception', title: "Liam's Big Moment", description: "Liam delivered his stretch project to the leadership team. It wasn't perfect, but his confidence has visibly grown. Dave comments: 'Not bad for a junior.'", delivery: 'meeting', character: 'liam', tags: ['recognition', 'coaching'],
+    options: [
+      { text: "Celebrate the win publicly — he earned it", effects: { trust: 10, engagement: 15, performance: 5, fairness: 10, credibility: 10 } },
+      { text: "Debrief privately on what went well and what to improve", effects: { trust: 10, engagement: 10, performance: 10, fairness: 5, credibility: 10 } },
+      { text: "Address Dave's backhanded compliment", effects: { trust: 5, engagement: 5, performance: 0, fairness: 10, credibility: 10 } },
+      { text: "Give him the next project too — he's ready", effects: { trust: 10, engagement: 15, performance: 0, fairness: 5, credibility: 5, emotionalLoad: 5 } },
+    ] },
+];
+
 const INITIAL_METRICS = { trust: 65, engagement: 65, performance: 70, retention: 70, fairness: 65, credibility: 60, emotionalLoad: 30 };
 const INITIAL_INVESTMENTS = { training: 0, teamBuilding: 0, tools: 0, recognition: 0, oneOnOnes: 0, coaching: 0, strategy: 0, selfCare: 0 };
 
@@ -2192,10 +2269,30 @@ export default function App() {
     const num = round === 1 ? 2 : round === 4 ? 4 : 3;
     const used = decisions.map(d => d.eventId);
     const departedIds = chars.filter(c => c.departed).map(c => c.id);
-    return [...ALL_EVENTS.filter(e =>
+
+    // Check for triggered follow-up events based on previous decisions
+    const followUps = FOLLOW_UP_EVENTS.filter(f => {
+      if (used.includes(f.id)) return false;
+      if (f.character && departedIds.includes(f.character)) return false;
+      const triggerDecision = decisions.find(d => d.eventId === f.trigger.eventId);
+      if (!triggerDecision) return false;
+      const chosenIndex = ALL_EVENTS.find(e => e.id === f.trigger.eventId)
+        ?.options.findIndex(o => o.text === triggerDecision.choice);
+      return chosenIndex === f.trigger.optionIndex;
+    });
+
+    // Fill remaining slots with random regular events
+    const regularPool = [...ALL_EVENTS.filter(e =>
       !used.includes(e.id) &&
       (!e.character || !departedIds.includes(e.character))
-    )].sort(() => Math.random() - 0.5).slice(0, num);
+    )].sort(() => Math.random() - 0.5);
+
+    const picked = [...followUps.slice(0, num)];
+    for (const e of regularPool) {
+      if (picked.length >= num) break;
+      picked.push(e);
+    }
+    return picked;
   }, [round, decisions, chars]);
 
   const allocateBudget = (quarterPot = 20000) => {
@@ -2513,7 +2610,6 @@ export default function App() {
         <div aria-hidden="true" className="animate-pulse hide-mobile" style={{ position: 'absolute', top: '10%', left: '5%', width: 300, height: 300, borderRadius: '50%', background: `radial-gradient(circle, ${COLORS.purple}20 0%, transparent 70%)` }} />
         <div aria-hidden="true" className="animate-pulse hide-mobile" style={{ position: 'absolute', bottom: '15%', right: '10%', width: 200, height: 200, borderRadius: '50%', background: `radial-gradient(circle, ${COLORS.teal}20 0%, transparent 70%)` }} />
         <div id="main-content" className="intro-content">
-
           <h1 className="intro-title" style={{ color: COLORS.white }}>Under <span style={{ color: COLORS.purple }}>Pressure</span></h1>
           <p className="intro-subtitle" style={{ color: COLORS.teal }}>The People Management Simulation</p>
           <p className="intro-description" style={{ color: `${COLORS.white}cc`, fontWeight: 300 }}>Lead a team through realistic challenges. Allocate your time and budget, then navigate difficult situations where your investments shape the outcomes.</p>
@@ -2844,7 +2940,6 @@ export default function App() {
         <a href="#results-content" className="skip-link">Skip to results</a>
         <header style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${COLORS.white}10`, flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-
             <span className="brand-text" style={{ fontSize: '1.25rem', fontWeight: 700, color: COLORS.white }}>UNDER <span style={{ color: COLORS.purple }}>PRESSURE</span></span>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -2895,12 +2990,15 @@ export default function App() {
             <div style={{ background: `linear-gradient(135deg, ${COLORS.grey} 0%, ${COLORS.greyDark} 100%)`, borderRadius: 16, padding: 20, border: `1px solid ${COLORS.white}10` }}>
               <div style={{ fontSize: '0.7rem', color: COLORS.yellow, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>Key Moments</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {decisions.map(d => ({ ...d, totalImpact: d.effects ? Object.values(d.effects).reduce((s, v) => s + Math.abs(v || 0), 0) : 0 })).sort((a, b) => b.totalImpact - a.totalImpact).slice(0, 3).map(d => (
-                  <div key={d.eventId} style={{ padding: '10px 12px', borderRadius: 10, borderLeft: `3px solid ${COLORS.purple}`, background: `${COLORS.black}50` }}>
-                    <div style={{ fontSize: '0.7rem', color: COLORS.purple, marginBottom: 3 }}>Q{d.round}: {d.eventTitle}</div>
+                {decisions.map(d => ({ ...d, totalImpact: d.effects ? Object.values(d.effects).reduce((s, v) => s + Math.abs(v || 0), 0) : 0 })).sort((a, b) => b.totalImpact - a.totalImpact).slice(0, 3).map(d => {
+                  const isFU = FOLLOW_UP_EVENTS.some(f => f.id === d.eventId);
+                  return (
+                  <div key={d.eventId} style={{ padding: '10px 12px', borderRadius: 10, borderLeft: `3px solid ${isFU ? COLORS.teal : COLORS.purple}`, background: `${COLORS.black}50` }}>
+                    <div style={{ fontSize: '0.7rem', color: isFU ? COLORS.teal : COLORS.purple, marginBottom: 3 }}>{isFU ? '↩ ' : ''}Q{d.round}: {d.eventTitle}</div>
                     <div style={{ fontSize: '0.85rem', color: `${COLORS.white}cc` }}>{d.choice}</div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <div style={{ textAlign: 'center', fontSize: '0.6rem', color: `${COLORS.white}40`, paddingTop: 8 }}>Under Pressure — Leadership Development Simulation</div>
@@ -2979,10 +3077,11 @@ export default function App() {
                 {decisions.map((d) => {
                   const charObj = d.character ? chars.find(c => c.id === d.character) : null;
                   const significantEffects = d.effects ? Object.entries(d.effects).filter(([, v]) => v !== 0 && v !== undefined) : [];
+                  const isFollowUp = FOLLOW_UP_EVENTS.some(f => f.id === d.eventId);
                   return (
-                    <div key={d.eventId} role="listitem" style={{ background: `${COLORS.black}50`, padding: '12px 15px', borderRadius: 10, borderLeft: `3px solid ${COLORS.purple}` }}>
+                    <div key={d.eventId} role="listitem" style={{ background: `${COLORS.black}50`, padding: '12px 15px', borderRadius: 10, borderLeft: `3px solid ${isFollowUp ? COLORS.teal : COLORS.purple}` }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <div style={{ fontSize: '0.75rem', color: COLORS.purple }}>Q{d.round}: {d.eventTitle}</div>
+                        <div style={{ fontSize: '0.75rem', color: isFollowUp ? COLORS.teal : COLORS.purple }}>{isFollowUp ? '↩ ' : ''}Q{d.round}: {d.eventTitle}</div>
                         {charObj && <span style={{ fontSize: '0.7rem', color: `${COLORS.white}80` }}>{charObj.avatar} {charObj.name.split(' ')[0]}</span>}
                       </div>
                       <div style={{ fontSize: '0.9rem', color: `${COLORS.white}cc`, marginBottom: significantEffects.length ? 8 : 0 }}>{d.choice}</div>
@@ -3619,7 +3718,6 @@ export default function App() {
       {/* Responsive Header */}
       <header className="game-header" style={{ background: `linear-gradient(90deg, ${COLORS.greyDark} 0%, ${COLORS.grey} 100%)`, borderBottom: `1px solid ${COLORS.white}10` }}>
         <div className="header-brand">
-
           <span className="brand-text" style={{ fontSize: '1rem', fontWeight: 700, color: COLORS.white }}>UNDER <span style={{ color: COLORS.purple }}>PRESSURE</span></span>
           <div aria-label={`Quarter ${round} of 4`} style={{ background: `${COLORS.purple}30`, padding: '4px 12px', borderRadius: 15, fontSize: '0.75rem', color: COLORS.purple, fontWeight: 600 }}>Q{round}/4</div>
           <div aria-label={`Budget: £${budget.current.toLocaleString()}`} style={{ background: `${COLORS.teal}30`, padding: '4px 12px', borderRadius: 15, fontSize: '0.75rem', color: COLORS.teal, fontWeight: 600 }}>
@@ -3819,6 +3917,16 @@ export default function App() {
                     <span style={{ background: `${COLORS.purple}30`, padding: '4px 10px', borderRadius: 12, fontSize: '0.65rem', color: COLORS.purple, fontWeight: 600, textTransform: 'uppercase' }}>{event.category}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: `${COLORS.white}99`, fontSize: '0.75rem' }}><span aria-hidden="true">{getDeliveryIcon(event.delivery)}</span><span style={{ textTransform: 'capitalize' }}>via {event.delivery.replace('_', ' ')}</span></span>
                   </div>
+                  {FOLLOW_UP_EVENTS.some(f => f.id === event.id) && (() => {
+                    const fu = FOLLOW_UP_EVENTS.find(f => f.id === event.id);
+                    const origEvent = ALL_EVENTS.find(e => e.id === fu.trigger.eventId);
+                    const origDecision = decisions.find(d => d.eventId === fu.trigger.eventId);
+                    return origEvent && origDecision ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '4px 10px', background: `${COLORS.teal}15`, borderRadius: 8, borderLeft: `3px solid ${COLORS.teal}`, width: 'fit-content' }}>
+                        <span style={{ fontSize: '0.7rem', color: COLORS.teal }}>Following up: <em>{origEvent.title}</em></span>
+                      </div>
+                    ) : null;
+                  })()}
                   <h2 id="event-title" className="event-title" style={{ color: COLORS.white }}>{event.title}</h2>
                   <p style={{ fontSize: '0.95rem', color: `${COLORS.white}cc`, lineHeight: 1.6, marginBottom: 12 }}>{event.description}</p>
                   {event.character && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '6px 10px', background: `${COLORS.black}40`, borderRadius: 8, width: 'fit-content' }}><span aria-hidden="true" style={{ fontSize: '1.2rem' }}>{chars.find(c => c.id === event.character)?.avatar}</span><span style={{ color: `${COLORS.white}cc`, fontSize: '0.8rem' }}>Involves: <strong style={{ color: COLORS.white }}>{chars.find(c => c.id === event.character)?.name}</strong></span></div>}
